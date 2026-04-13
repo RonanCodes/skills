@@ -15,6 +15,7 @@ npx skills add RonanCodes/ronan-skills/src/tdd -g
 npx skills add RonanCodes/ronan-skills/src/commit -g
 npx skills add RonanCodes/ronan-skills/src/close-the-loop -g
 npx skills add RonanCodes/ronan-skills/src/debug-escape -g
+npx skills add RonanCodes/ronan-skills/src/post-mortem -g
 npx skills add RonanCodes/ronan-skills/src/coding-principles -g
 npx skills add RonanCodes/ronan-skills/src/grill-me -g
 npx skills add RonanCodes/ronan-skills/src/ubiquitous-language -g
@@ -51,6 +52,7 @@ ln -s <your-dev-folder>/ronan-skills/src/tdd ~/.claude/skills/tdd
 ln -s <your-dev-folder>/ronan-skills/src/commit ~/.claude/skills/commit
 ln -s <your-dev-folder>/ronan-skills/src/close-the-loop ~/.claude/skills/close-the-loop
 ln -s <your-dev-folder>/ronan-skills/src/debug-escape ~/.claude/skills/debug-escape
+ln -s <your-dev-folder>/ronan-skills/src/post-mortem ~/.claude/skills/post-mortem
 ln -s <your-dev-folder>/ronan-skills/src/coding-principles ~/.claude/skills/coding-principles
 
 # Quality & Review
@@ -91,6 +93,7 @@ Skills available globally. `git pull` to update.
 | [commit](src/commit) | Emoji conventional commit format. Handles staging, message formatting, and timestamp rules. | `/commit [--amend]` |
 | [close-the-loop](src/close-the-loop) | Verification loop that ensures work is done -- tests pass, UI works, screenshots match. | `/close-the-loop [--all \| --story <id> \| --url <url>]` |
 | [debug-escape](src/debug-escape) | Break out of debugging loops by stepping back and researching. Use when stuck or going in circles. | `/debug-escape [error-message]` |
+| [post-mortem](src/post-mortem) | Document a resolved bug as a structured post-mortem. Captures root cause, failed attempts, and lessons learned. | `/post-mortem [description]` |
 | [coding-principles](src/coding-principles) | Software design principles -- KISS, SOLID, DRY, tracer bullets. Index loaded, detail files read on demand. | `/coding-principles` |
 
 ### Quality & Review
@@ -158,6 +161,7 @@ repo/
 │   ├── commit/SKILL.md
 │   ├── close-the-loop/SKILL.md
 │   ├── debug-escape/SKILL.md
+│   ├── post-mortem/SKILL.md
 │   ├── coding-principles/SKILL.md       + principles/*.md detail files
 │   ├── grill-me/SKILL.md
 │   ├── ubiquitous-language/SKILL.md
