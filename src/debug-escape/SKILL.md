@@ -97,6 +97,10 @@ After researching, produce a structured report:
 [Specific, actionable fix based on research — not another guess]
 ```
 
+## After the Fix
+
+Once the bug is resolved, run `/post-mortem` to document what happened. Tricky bugs deserve a write-up — your future self will thank you.
+
 ## Rules
 
 1. Do NOT retry the same approach that already failed
