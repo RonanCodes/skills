@@ -30,6 +30,11 @@ npx skills add RonanCodes/ronan-skills/src/create-skill -g
 npx skills add RonanCodes/ronan-skills/src/setup-wizard -g
 npx skills add RonanCodes/ronan-skills/src/doc-standards -g
 npx skills add RonanCodes/ronan-skills/src/remotion-video -g
+npx skills add RonanCodes/ronan-skills/src/video-script -g
+npx skills add RonanCodes/ronan-skills/src/video-copy -g
+npx skills add RonanCodes/ronan-skills/src/video-assets -g
+npx skills add RonanCodes/ronan-skills/src/video-review -g
+npx skills add RonanCodes/ronan-skills/src/video-render -g
 ```
 
 Or install into the current project only (omit `-g`):
@@ -77,6 +82,11 @@ ln -s <your-dev-folder>/ronan-skills/src/doc-standards ~/.claude/skills/doc-stan
 
 # Video & Media
 ln -s <your-dev-folder>/ronan-skills/src/remotion-video ~/.claude/skills/remotion-video
+ln -s <your-dev-folder>/ronan-skills/src/video-script ~/.claude/skills/video-script
+ln -s <your-dev-folder>/ronan-skills/src/video-copy ~/.claude/skills/video-copy
+ln -s <your-dev-folder>/ronan-skills/src/video-assets ~/.claude/skills/video-assets
+ln -s <your-dev-folder>/ronan-skills/src/video-review ~/.claude/skills/video-review
+ln -s <your-dev-folder>/ronan-skills/src/video-render ~/.claude/skills/video-render
 ```
 
 Skills available globally. `git pull` to update.
@@ -133,6 +143,11 @@ Skills available globally. `git pull` to update.
 | Skill | Description | Invocation |
 |-------|-------------|------------|
 | [remotion-video](src/remotion-video) | Generate programmatic videos using Remotion (React to video). Marketing promo and app demo modes. | `/remotion-video [--marketing \| --demo] <project>` |
+| [video-script](src/video-script) | Write video scripts and storyboards with scene-by-scene breakdown. | `/video-script <topic> [--promo \| --demo]` |
+| [video-copy](src/video-copy) | Write compelling on-screen text and narration. Multiple versions. No AI buzzwords. | `/video-copy <script> [--tone casual\|bold\|technical] [--versions 3]` |
+| [video-assets](src/video-assets) | Generate visual assets (terminal mockups, diagrams, screenshots). | `/video-assets <script> [--generate-all]` |
+| [video-review](src/video-review) | Review compositions against quality checklist before rendering. | `/video-review <comp-id> [--against <script>]` |
+| [video-render](src/video-render) | Render with FFmpeg optimization, social media cuts, draft/high quality modes. | `/video-render <comp-id> [--quality high\|draft] [--social]` |
 
 ## Recommended MCPs
 
@@ -175,7 +190,12 @@ repo/
 │   ├── create-skill/SKILL.md
 │   ├── setup-wizard/SKILL.md
 │   ├── doc-standards/SKILL.md
-│   └── remotion-video/SKILL.md
+│   ├── remotion-video/SKILL.md
+│   ├── video-script/SKILL.md
+│   ├── video-copy/SKILL.md
+│   ├── video-assets/SKILL.md
+│   ├── video-review/SKILL.md
+│   └── video-render/SKILL.md
 ├── README.md
 └── LICENSE
 ```
