@@ -14,6 +14,7 @@ npx skills add RonanCodes/ronan-skills/src/frontend-design -g
 npx skills add RonanCodes/ronan-skills/src/create-skill -g
 npx skills add RonanCodes/ronan-skills/src/doc-standards -g
 npx skills add RonanCodes/ronan-skills/src/commit -g
+npx skills add RonanCodes/ronan-skills/src/coding-principles -g
 ```
 
 Or install into the current project only (omit `-g`):
@@ -34,6 +35,7 @@ ln -s <your-dev-folder>/ronan-skills/src/frontend-design ~/.claude/skills/fronte
 ln -s <your-dev-folder>/ronan-skills/src/create-skill ~/.claude/skills/create-skill
 ln -s <your-dev-folder>/ronan-skills/src/doc-standards ~/.claude/skills/doc-standards
 ln -s <your-dev-folder>/ronan-skills/src/commit ~/.claude/skills/commit
+ln -s <your-dev-folder>/ronan-skills/src/coding-principles ~/.claude/skills/coding-principles
 ```
 
 Skills available globally. `git pull` to update.
@@ -47,6 +49,7 @@ Skills available globally. `git pull` to update.
 | [create-skill](src/create-skill) | Meta-skill for creating new skills with proper SKILL.md structure, frontmatter, and best practices. |
 | [doc-standards](src/doc-standards) | Documentation conventions: mermaid diagrams, formatting, when to use which diagram type. |
 | [commit](src/commit) | Emoji conventional commit format. Handles staging, message formatting, and timestamp rules. |
+| [coding-principles](src/coding-principles) | Software design principles — KISS, SOLID, DRY, tracer bullets. Index + detail files read on demand. |
 
 ## How It Works
 
@@ -59,7 +62,8 @@ repo/
 │   ├── frontend-design/SKILL.md
 │   ├── create-skill/SKILL.md
 │   ├── doc-standards/SKILL.md
-│   └── commit/SKILL.md
+│   ├── commit/SKILL.md
+│   └── coding-principles/SKILL.md  ← + principles/*.md detail files
 ├── README.md
 └── LICENSE
 ```
