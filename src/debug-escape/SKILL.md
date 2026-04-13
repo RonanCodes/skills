@@ -29,6 +29,11 @@ Work through these in order. Stop as soon as you find the answer.
 - `git diff HEAD~5` — compare with a known-working state
 - `git stash` current changes, run tests — did the problem exist before?
 - If it worked before, `git bisect` or binary search the commit that broke it
+- When you find the breaking commit, tag it for future reference:
+  ```bash
+  git tag bug/introduced/<slug> <commit-hash>
+  ```
+  This makes it trivial to find later: `git tag -l "bug/*"` lists all tagged bugs
 
 ### 2. Look Up — Documentation
 

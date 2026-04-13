@@ -55,6 +55,7 @@ Use this template:
 **Time to resolve:** <approximate>
 **Severity:** <low | medium | high | critical>
 **Area:** <file path, module, or system area>
+**Tags:** `bug/introduced/<slug>` → `bug/fixed/<slug>`
 
 ## Symptom
 
@@ -88,11 +89,27 @@ Use this template:
 - <Links to relevant docs, GitHub issues, or Stack Overflow answers found during debugging>
 ```
 
-### 3. Update .gitignore if Needed
+### 3. Tag the Fix
+
+Tag the fix commit so it's easy to find via `git tag -l "bug/*"`:
+
+```bash
+git tag bug/fixed/<slug> <fix-commit-hash>
+```
+
+If `/debug-escape` already tagged the introducing commit as `bug/introduced/<slug>`, reference both in the post-mortem. If the introducing commit wasn't tagged yet and you know which commit introduced the bug, tag it now:
+
+```bash
+git tag bug/introduced/<slug> <introducing-commit-hash>
+```
+
+The tag pair tells the full story: `git log bug/introduced/<slug>..bug/fixed/<slug>` shows everything between cause and cure.
+
+### 4. Update .gitignore if Needed
 
 Check if `.post-mortems/` is gitignored. It should NOT be — these files are meant to be committed and shared with the team.
 
-### 4. Commit
+### 5. Commit
 
 Stage and commit the post-mortem:
 
@@ -109,3 +126,4 @@ git commit -m "📝 docs: post-mortem — <short description>"
 4. Keep it concise — a post-mortem is a reference doc, not a narrative
 5. If the fix commit is already made, reference its hash
 6. Never skip the "Lessons Learned" section — that's the whole point
+7. Always tag the fix commit with `bug/fixed/<slug>` — tag the introducing commit too if known
