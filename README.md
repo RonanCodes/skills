@@ -55,6 +55,23 @@ npx skills add RonanCodes/skills/frontend-design -g
 | [create-skill](/create-skill) | Meta-skill for creating new skills with proper SKILL.md structure, frontmatter, and best practices. |
 | [doc-standards](/doc-standards) | Documentation conventions: mermaid diagrams, formatting, when to use which diagram type. |
 
+## Auto-register in other projects
+
+To make this marketplace show up automatically when someone opens your project in Claude Code, add this to your project's `.claude/settings.json`:
+
+```json
+{
+    "extraKnownMarketplaces": [
+        {
+            "source": "github",
+            "repo": "RonanCodes/skills"
+        }
+    ]
+}
+```
+
+Users will see the marketplace in `/plugin` > Discover and can install with one click.
+
 ## How It Works
 
 These skills follow the [Agent Skills](https://agentskills.io) open standard. Each skill is a `SKILL.md` file with YAML frontmatter.
@@ -62,18 +79,17 @@ These skills follow the [Agent Skills](https://agentskills.io) open standard. Ea
 The repo supports multiple install methods:
 
 ```
-skills/
-├── ralph/SKILL.md                    ← direct skills (Options 2-4)
-├── frontend-design/SKILL.md
-├── create-skill/SKILL.md
-├── doc-standards/SKILL.md
-├── .claude/skills/                   ← symlinks for additionalDirectories
-├── .claude-plugin/marketplace.json   ← marketplace catalog (Option 1)
-└── plugins/                          ← plugin-wrapped skills (Option 1)
-    ├── ralph/
-    ├── frontend-design/
-    ├── create-skill/
-    └── doc-standards/
+repo/
+├── skills/                           ← SOURCE OF TRUTH
+│   ├── ralph/SKILL.md
+│   ├── frontend-design/SKILL.md
+│   ├── create-skill/SKILL.md
+│   └── doc-standards/SKILL.md
+├── .claude/skills/                   ← symlinks → skills/ (for additionalDirectories)
+├── .claude-plugin/marketplace.json   ← marketplace catalog (for Option 1)
+├── plugins/ronan-skills/             ← symlinks → skills/ (for marketplace plugin)
+├── README.md
+└── LICENSE
 ```
 
 ## License
