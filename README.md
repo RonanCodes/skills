@@ -41,13 +41,12 @@ git clone https://github.com/RonanCodes/skills.git ~/.claude/skills
 ### Option 4: npx (any agent, not just Claude)
 
 ```bash
-npx skills add RonanCodes/skills/skills/ralph -g
-npx skills add RonanCodes/skills/skills/frontend-design -g
-npx skills add RonanCodes/skills/skills/create-skill -g
-npx skills add RonanCodes/skills/skills/doc-standards -g
+npx skills add RonanCodes/skills/src/ralph -g
+npx skills add RonanCodes/skills/src/frontend-design -g
+npx skills add RonanCodes/skills/src/create-skill -g
+npx skills add RonanCodes/skills/src/doc-standards -g
 ```
 
-Note: The double `skills/skills/` is because the repo is named `skills` and the skills live in a `skills/` subfolder.
 
 ## Skills
 
@@ -85,14 +84,14 @@ The repo supports multiple install methods:
 
 ```
 repo/
-├── skills/                           ← SOURCE OF TRUTH
+├── src/                              ← SOURCE OF TRUTH
 │   ├── ralph/SKILL.md
 │   ├── frontend-design/SKILL.md
 │   ├── create-skill/SKILL.md
 │   └── doc-standards/SKILL.md
-├── .claude/skills/                   ← symlinks → skills/ (for additionalDirectories)
+├── .claude/skills/                   ← symlinks → src/ (for additionalDirectories)
 ├── .claude-plugin/marketplace.json   ← marketplace catalog (for Option 1)
-├── plugins/ronan-skills/             ← symlinks → skills/ (for marketplace plugin)
+├── plugins/ronan-skills/             ← symlinks → src/ (for marketplace plugin)
 ├── README.md
 └── LICENSE
 ```
