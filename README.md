@@ -8,7 +8,7 @@ Personal agent skills for Claude Code, Cursor, Codex, and [40+ other AI agents](
 
 ```bash
 # Add the marketplace (one-time)
-/plugin marketplace add RonanCodes/skills
+/plugin marketplace add RonanCodes/ronan-skills
 
 # Install all skills as one plugin
 /plugin install ronan-skills@ronan-skills
@@ -19,7 +19,7 @@ Personal agent skills for Claude Code, Cursor, Codex, and [40+ other AI agents](
 Clone anywhere on your machine:
 
 ```bash
-git clone https://github.com/RonanCodes/skills.git <your-path>/skills
+git clone https://github.com/RonanCodes/ronan-skills.git <your-path>/skills
 ```
 
 Add to `~/.claude/settings.json`:
@@ -35,16 +35,16 @@ Update anytime: `cd <your-path>/skills && git pull`
 ### Option 3: Clone to personal skills
 
 ```bash
-git clone https://github.com/RonanCodes/skills.git ~/.claude/skills
+git clone https://github.com/RonanCodes/ronan-skills.git ~/.claude/skills
 ```
 
 ### Option 4: npx (any agent, not just Claude)
 
 ```bash
-npx skills add RonanCodes/skills/src/ralph -g
-npx skills add RonanCodes/skills/src/frontend-design -g
-npx skills add RonanCodes/skills/src/create-skill -g
-npx skills add RonanCodes/skills/src/doc-standards -g
+npx skills add RonanCodes/ronan-skills/src/ralph -g
+npx skills add RonanCodes/ronan-skills/src/frontend-design -g
+npx skills add RonanCodes/ronan-skills/src/create-skill -g
+npx skills add RonanCodes/ronan-skills/src/doc-standards -g
 ```
 
 
@@ -67,7 +67,7 @@ To make this marketplace show up automatically when someone opens your project i
         "ronan-skills": {
             "source": {
                 "source": "github",
-                "repo": "RonanCodes/skills"
+                "repo": "RonanCodes/ronan-skills"
             }
         }
     }
