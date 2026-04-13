@@ -1,9 +1,0 @@
-{
-    "name": "ronan-skills",
-    "description": "Personal agent skills: ralph loop, frontend design, skill creation, doc standards.",
-    "version": "1.0.0",
-    "author": {
-        "name": "RonanCodes"
-    },
-    "license": "MIT"
-}

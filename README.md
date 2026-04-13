@@ -4,41 +4,9 @@ Personal agent skills for Claude Code, Cursor, Codex, and [40+ other AI agents](
 
 ## Install
 
-### Option 1: Claude Code Plugin Marketplace (recommended)
+### Option 1: npx (one-time install, works with any agent)
 
-```bash
-# Add the marketplace (one-time)
-/plugin marketplace add RonanCodes/ronan-skills
-
-# Install all skills as one plugin
-/plugin install ronan-skills@ronan-skills
-```
-
-### Option 2: Clone + additionalDirectories
-
-Clone anywhere on your machine:
-
-```bash
-git clone https://github.com/RonanCodes/ronan-skills.git <your-path>/skills
-```
-
-Add to `~/.claude/settings.json`:
-
-```json
-{
-    "additionalDirectories": ["<your-path>/skills"]
-}
-```
-
-Update anytime: `cd <your-path>/skills && git pull`
-
-### Option 3: Clone to personal skills
-
-```bash
-git clone https://github.com/RonanCodes/ronan-skills.git ~/.claude/skills
-```
-
-### Option 4: npx (any agent, not just Claude)
+Install globally (available in all projects):
 
 ```bash
 npx skills add RonanCodes/ronan-skills/src/ralph -g
@@ -47,51 +15,47 @@ npx skills add RonanCodes/ronan-skills/src/create-skill -g
 npx skills add RonanCodes/ronan-skills/src/doc-standards -g
 ```
 
+Or install into the current project only (omit `-g`):
+
+```bash
+npx skills add RonanCodes/ronan-skills/src/ralph
+```
+
+### Option 2: Clone + symlink (stays up to date)
+
+Clone anywhere, then symlink each skill into `~/.claude/skills/`:
+
+```bash
+git clone https://github.com/RonanCodes/ronan-skills.git <your-dev-folder>/ronan-skills
+
+ln -s <your-dev-folder>/ronan-skills/src/ralph ~/.claude/skills/ralph
+ln -s <your-dev-folder>/ronan-skills/src/frontend-design ~/.claude/skills/frontend-design
+ln -s <your-dev-folder>/ronan-skills/src/create-skill ~/.claude/skills/create-skill
+ln -s <your-dev-folder>/ronan-skills/src/doc-standards ~/.claude/skills/doc-standards
+```
+
+Skills available globally. `git pull` to update.
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| [ralph](/ralph) | Autonomous build loop. Reads PRD, implements one story per iteration, validates, commits, tracks progress. Based on the Ralph Wiggum technique. |
-| [frontend-design](/frontend-design) | Create distinctive, production-grade frontend interfaces. Avoids generic AI aesthetics. |
-| [create-skill](/create-skill) | Meta-skill for creating new skills with proper SKILL.md structure, frontmatter, and best practices. |
-| [doc-standards](/doc-standards) | Documentation conventions: mermaid diagrams, formatting, when to use which diagram type. |
-
-## Auto-register in other projects
-
-To make this marketplace show up automatically when someone opens your project in Claude Code, add this to your project's `.claude/settings.json`:
-
-```json
-{
-    "extraKnownMarketplaces": {
-        "ronan-skills": {
-            "source": {
-                "source": "github",
-                "repo": "RonanCodes/ronan-skills"
-            }
-        }
-    }
-}
-```
-
-Users will see the marketplace in `/plugin` > Discover and can install with one click.
+| [ralph](src/ralph) | Autonomous build loop. Reads PRD, implements one story per iteration, validates, commits, tracks progress. Based on the Ralph Wiggum technique. |
+| [frontend-design](src/frontend-design) | Create distinctive, production-grade frontend interfaces. Avoids generic AI aesthetics. |
+| [create-skill](src/create-skill) | Meta-skill for creating new skills with proper SKILL.md structure, frontmatter, and best practices. |
+| [doc-standards](src/doc-standards) | Documentation conventions: mermaid diagrams, formatting, when to use which diagram type. |
 
 ## How It Works
 
 These skills follow the [Agent Skills](https://agentskills.io) open standard. Each skill is a `SKILL.md` file with YAML frontmatter.
 
-The repo supports multiple install methods:
-
 ```
 repo/
-├── src/                              ← SOURCE OF TRUTH
+├── src/                              ← skills (source of truth)
 │   ├── ralph/SKILL.md
 │   ├── frontend-design/SKILL.md
 │   ├── create-skill/SKILL.md
 │   └── doc-standards/SKILL.md
-├── .claude/skills/                   ← symlinks → src/ (for additionalDirectories)
-├── .claude-plugin/marketplace.json   ← marketplace catalog (for Option 1)
-├── plugins/ronan-skills/             ← symlinks → src/ (for marketplace plugin)
 ├── README.md
 └── LICENSE
 ```
