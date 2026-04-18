@@ -1,0 +1,14 @@
+{
+  "name": "ro",
+  "description": "Ronan's personal skills — development workflow, quality, browser/visual, research, and project setup.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ronan Connolly"
+  },
+  "homepage": "https://github.com/RonanCodes/ronan-skills",
+  "repository": "https://github.com/RonanCodes/ronan-skills",
+  "license": "MIT",
+  "keywords": ["skills", "cursor", "productivity", "workflow"],
+  "category": "productivity",
+  "skills": "./skills"
+}

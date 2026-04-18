@@ -1,157 +1,93 @@
-# Skills
+# Ronan Skills (`ro`)
 
-Personal agent skills for Claude Code, Cursor, Codex, and [40+ other AI agents](https://agentskills.io).
+A Claude Code plugin bundling 20 personal skills for development, quality, browser/visual, research, and project setup. Invoke any skill as `/ro:<skill-name>`.
+
+Also publishable to Cursor, and individual skills work with [40+ other AI agents](https://agentskills.io) via `npx skills add`.
 
 ## Install
 
-### Option 1: npx (one-time install, works with any agent)
-
-Install globally (available in all projects):
+### Claude Code (recommended — bundles all 20 skills in one command)
 
 ```bash
-npx skills add RonanCodes/ronan-skills/src/ralph -g
-npx skills add RonanCodes/ronan-skills/src/write-a-prd -g
-npx skills add RonanCodes/ronan-skills/src/tdd -g
-npx skills add RonanCodes/ronan-skills/src/commit -g
-npx skills add RonanCodes/ronan-skills/src/close-the-loop -g
-npx skills add RonanCodes/ronan-skills/src/debug-escape -g
-npx skills add RonanCodes/ronan-skills/src/post-mortem -g
-npx skills add RonanCodes/ronan-skills/src/coding-principles -g
-npx skills add RonanCodes/ronan-skills/src/grill-me -g
-npx skills add RonanCodes/ronan-skills/src/ubiquitous-language -g
-npx skills add RonanCodes/ronan-skills/src/git-guardrails -g
-npx skills add RonanCodes/ronan-skills/src/frontend-design -g
-npx skills add RonanCodes/ronan-skills/src/browser-dev -g
-npx skills add RonanCodes/ronan-skills/src/playwright-check -g
-npx skills add RonanCodes/ronan-skills/src/visual-diff -g
-npx skills add RonanCodes/ronan-skills/src/firefox-cookies -g
-npx skills add RonanCodes/ronan-skills/src/perplexity-research -g
-npx skills add RonanCodes/ronan-skills/src/create-skill -g
-npx skills add RonanCodes/ronan-skills/src/setup-wizard -g
-npx skills add RonanCodes/ronan-skills/src/doc-standards -g
-npx skills add RonanCodes/ronan-skills/src/remotion-video -g
-npx skills add RonanCodes/ronan-skills/src/video-script -g
-npx skills add RonanCodes/ronan-skills/src/video-copy -g
-npx skills add RonanCodes/ronan-skills/src/video-assets -g
-npx skills add RonanCodes/ronan-skills/src/video-review -g
-npx skills add RonanCodes/ronan-skills/src/video-render -g
+/plugin marketplace add RonanCodes/ronan-skills
+/plugin install ro@ronan-skills
 ```
 
-Or install into the current project only (omit `-g`):
+Skills then appear as `/ro:ralph`, `/ro:commit`, `/ro:tdd`, etc. Run `/plugin` to manage.
+
+### Cursor
+
+The same repo is also a Cursor plugin (see `.cursor-plugin/plugin.json`). Submit via [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish) or point Cursor at the `skills/` directory locally. Cursor CLI does not yet support plugins — IDE only.
+
+### Other agents (Codex, Cline, etc.) — per-skill install
 
 ```bash
-npx skills add RonanCodes/ronan-skills/src/ralph
+npx skills add RonanCodes/ronan-skills/skills/ralph -g
+npx skills add RonanCodes/ronan-skills/skills/commit -g
+# ...etc per skill, -g for global, omit for project-local
 ```
 
-### Option 2: Clone + symlink (stays up to date)
+## Configuration
 
-Clone anywhere, then symlink each skill into `~/.claude/skills/`:
+Skills that need API keys (e.g. `perplexity-research`) read from a shared env file:
 
-```bash
-git clone https://github.com/RonanCodes/ronan-skills.git <your-dev-folder>/ronan-skills
+- **Claude Code**: `${CLAUDE_PLUGIN_DATA}/.env` — persistent, survives plugin updates
+- **Other agents**: `~/.config/ro/.env`
 
-# Development Workflow
-ln -s <your-dev-folder>/ronan-skills/src/ralph ~/.claude/skills/ralph
-ln -s <your-dev-folder>/ronan-skills/src/write-a-prd ~/.claude/skills/write-a-prd
-ln -s <your-dev-folder>/ronan-skills/src/tdd ~/.claude/skills/tdd
-ln -s <your-dev-folder>/ronan-skills/src/commit ~/.claude/skills/commit
-ln -s <your-dev-folder>/ronan-skills/src/close-the-loop ~/.claude/skills/close-the-loop
-ln -s <your-dev-folder>/ronan-skills/src/debug-escape ~/.claude/skills/debug-escape
-ln -s <your-dev-folder>/ronan-skills/src/post-mortem ~/.claude/skills/post-mortem
-ln -s <your-dev-folder>/ronan-skills/src/coding-principles ~/.claude/skills/coding-principles
-
-# Quality & Review
-ln -s <your-dev-folder>/ronan-skills/src/grill-me ~/.claude/skills/grill-me
-ln -s <your-dev-folder>/ronan-skills/src/ubiquitous-language ~/.claude/skills/ubiquitous-language
-ln -s <your-dev-folder>/ronan-skills/src/git-guardrails ~/.claude/skills/git-guardrails
-
-# Browser & Visual
-ln -s <your-dev-folder>/ronan-skills/src/frontend-design ~/.claude/skills/frontend-design
-ln -s <your-dev-folder>/ronan-skills/src/browser-dev ~/.claude/skills/browser-dev
-ln -s <your-dev-folder>/ronan-skills/src/playwright-check ~/.claude/skills/playwright-check
-ln -s <your-dev-folder>/ronan-skills/src/visual-diff ~/.claude/skills/visual-diff
-ln -s <your-dev-folder>/ronan-skills/src/firefox-cookies ~/.claude/skills/firefox-cookies
-
-# Research
-ln -s <your-dev-folder>/ronan-skills/src/perplexity-research ~/.claude/skills/perplexity-research
-
-# Project Setup & Tooling
-ln -s <your-dev-folder>/ronan-skills/src/create-skill ~/.claude/skills/create-skill
-ln -s <your-dev-folder>/ronan-skills/src/setup-wizard ~/.claude/skills/setup-wizard
-ln -s <your-dev-folder>/ronan-skills/src/doc-standards ~/.claude/skills/doc-standards
-
-# Video & Media
-ln -s <your-dev-folder>/ronan-skills/src/remotion-video ~/.claude/skills/remotion-video
-ln -s <your-dev-folder>/ronan-skills/src/video-script ~/.claude/skills/video-script
-ln -s <your-dev-folder>/ronan-skills/src/video-copy ~/.claude/skills/video-copy
-ln -s <your-dev-folder>/ronan-skills/src/video-assets ~/.claude/skills/video-assets
-ln -s <your-dev-folder>/ronan-skills/src/video-review ~/.claude/skills/video-review
-ln -s <your-dev-folder>/ronan-skills/src/video-render ~/.claude/skills/video-render
-```
-
-Skills available globally. `git pull` to update.
+Copy `.env.example` as a starting point, or run `/ro:setup-wizard --tokens` for a guided walkthrough.
 
 ## Skills
 
+All skills invoke as `/ro:<skill-name>` in Claude Code.
+
 ### Development Workflow
 
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [ralph](src/ralph) | Autonomous build loop. Picks tasks from `.ralph/prd.json`, implements, validates, commits, and tracks progress. | `/ralph [--plan-only \| --single \| --all]` |
-| [write-a-prd](src/write-a-prd) | Generate a PRD through an interactive interview. Quick mode writes prd.json directly, plan mode creates a reviewable plan.md first. | `/write-a-prd [--quick \| --plan] <feature>` |
-| [tdd](src/tdd) | Test-driven development with red-green-refactor cycles and vertical slices. | `/tdd <feature-or-story>` |
-| [commit](src/commit) | Emoji conventional commit format. Handles staging, message formatting, and timestamp rules. | `/commit [--amend]` |
-| [close-the-loop](src/close-the-loop) | Verification loop that ensures work is done -- tests pass, UI works, screenshots match. | `/close-the-loop [--all \| --story <id> \| --url <url>]` |
-| [debug-escape](src/debug-escape) | Break out of debugging loops by stepping back and researching. Use when stuck or going in circles. | `/debug-escape [error-message]` |
-| [post-mortem](src/post-mortem) | Document a resolved bug as a structured post-mortem. Captures root cause, failed attempts, and lessons learned. | `/post-mortem [description]` |
-| [coding-principles](src/coding-principles) | Software design principles -- KISS, SOLID, DRY, tracer bullets. Index loaded, detail files read on demand. | `/coding-principles` |
+| Skill | Description |
+|-------|-------------|
+| [ralph](skills/ralph) | Autonomous build loop. Picks tasks from `.ralph/prd.json`, implements, validates, commits. |
+| [write-a-prd](skills/write-a-prd) | Generate a PRD through an interactive interview. Quick or plan mode. |
+| [tdd](skills/tdd) | Test-driven development with red-green-refactor cycles and vertical slices. |
+| [commit](skills/commit) | Emoji conventional commit format. Handles staging, messages, timestamp rules. |
+| [close-the-loop](skills/close-the-loop) | Verification loop — tests pass, UI works, screenshots match. |
+| [debug-escape](skills/debug-escape) | Break out of debugging loops by stepping back and researching. |
+| [post-mortem](skills/post-mortem) | Document a resolved bug as a structured post-mortem. |
+| [coding-principles](skills/coding-principles) | KISS, SOLID, DRY, tracer bullets. Index always loaded, detail files on demand. |
 
 ### Quality & Review
 
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [grill-me](src/grill-me) | Stress-test plans, designs, PRDs, or code by asking relentless probing questions. | `/grill-me [file-or-topic]` |
-| [ubiquitous-language](src/ubiquitous-language) | Extract and maintain a DDD-style glossary for consistent domain terminology. | `/ubiquitous-language [--scan \| --check \| --add <term>]` |
-| [git-guardrails](src/git-guardrails) | Safety net that blocks destructive git commands and suggests safer alternatives. Background skill for hooks. | _(auto-loaded)_ |
+| Skill | Description |
+|-------|-------------|
+| [grill-me](skills/grill-me) | Stress-test plans, designs, PRDs, or code with relentless probing questions. |
+| [ubiquitous-language](skills/ubiquitous-language) | DDD-style glossary for consistent domain terminology. |
+| [git-guardrails](skills/git-guardrails) | Blocks destructive git commands, suggests safer alternatives. _(auto-loaded)_ |
 
 ### Browser & Visual
 
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [frontend-design](src/frontend-design) | Create distinctive, production-grade frontend interfaces. Avoids generic AI aesthetics. | `/frontend-design` |
-| [browser-dev](src/browser-dev) | Lightweight browser automation via custom scripts. No MCP required, scripts saved for reuse. | `/browser-dev <url> [--screenshot \| --check \| --flow "..."]` |
-| [playwright-check](src/playwright-check) | Browser-based verification using Playwright MCP. Navigate, interact, screenshot, check console errors. | `/playwright-check <url> [--flow <steps> \| --responsive]` |
-| [visual-diff](src/visual-diff) | Compare two images for visual correctness using pixel diff and Claude vision. | `/visual-diff <image1> <image2> [--threshold 95]` |
-| [firefox-cookies](src/firefox-cookies) | Extract cookies from Firefox for authenticated web scraping. macOS only. | _(called by other skills)_ |
+| Skill | Description |
+|-------|-------------|
+| [frontend-design](skills/frontend-design) | Distinctive, production-grade frontend interfaces. Avoids generic AI aesthetics. |
+| [browser-dev](skills/browser-dev) | Lightweight browser automation via custom scripts. No MCP required. |
+| [playwright-check](skills/playwright-check) | Playwright MCP — navigate, interact, screenshot, check console errors. |
+| [visual-diff](skills/visual-diff) | Compare two images using pixel diff and Claude vision. |
+| [firefox-cookies](skills/firefox-cookies) | Extract cookies from Firefox for authenticated scraping. macOS only. _(internal)_ |
 
 ### Research
 
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [perplexity-research](src/perplexity-research) | AI-powered web research using the Perplexity API. Returns sourced answers with citations. | `/perplexity-research <query> [--model sonar\|sonar-pro]` |
+| Skill | Description |
+|-------|-------------|
+| [perplexity-research](skills/perplexity-research) | Sourced web research via the Perplexity API. |
 
 ### Project Setup & Tooling
 
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [create-skill](src/create-skill) | Create a new Claude Code skill with proper SKILL.md structure, frontmatter, and best practices. | `/create-skill [skill-name]` |
-| [setup-wizard](src/setup-wizard) | Interactive onboarding wizard for environment setup. Guides through skills, IDE, MCP servers, and API tokens. | `/setup-wizard [--tokens \| --ide \| --mcp \| --check]` |
-| [doc-standards](src/doc-standards) | Documentation conventions: mermaid diagrams, formatting, when to use which diagram type. | _(auto-loaded)_ |
-
-### Video & Media
-
-| Skill | Description | Invocation |
-|-------|-------------|------------|
-| [remotion-video](src/remotion-video) | Generate programmatic videos using Remotion (React to video). Marketing promo and app demo modes. | `/remotion-video [--marketing \| --demo] <project>` |
-| [video-script](src/video-script) | Write video scripts and storyboards with scene-by-scene breakdown. | `/video-script <topic> [--promo \| --demo]` |
-| [video-copy](src/video-copy) | Write compelling on-screen text and narration. Multiple versions. No AI buzzwords. | `/video-copy <script> [--tone casual\|bold\|technical] [--versions 3]` |
-| [video-assets](src/video-assets) | Generate visual assets (terminal mockups, diagrams, screenshots). | `/video-assets <script> [--generate-all]` |
-| [video-review](src/video-review) | Review compositions against quality checklist before rendering. | `/video-review <comp-id> [--against <script>]` |
-| [video-render](src/video-render) | Render with FFmpeg optimization, social media cuts, draft/high quality modes. | `/video-render <comp-id> [--quality high\|draft] [--social]` |
+| Skill | Description |
+|-------|-------------|
+| [create-skill](skills/create-skill) | Scaffold a new `SKILL.md` with proper structure and frontmatter. |
+| [setup-wizard](skills/setup-wizard) | Interactive onboarding — plugin install, IDE, MCP servers, API tokens. |
+| [doc-standards](skills/doc-standards) | Documentation conventions — mermaid diagrams, formatting. _(auto-loaded)_ |
 
 ## Recommended MCPs
 
-These MCP servers pair well with the skills above. Install globally so they're available in every project:
+Skills pair well with these MCP servers. Install globally:
 
 ```bash
 claude mcp add -s user playwright -- npx @playwright/mcp@latest
@@ -160,16 +96,19 @@ claude mcp add -s user context7 -- npx -y @upstash/context7-mcp@latest
 
 | MCP | What it does |
 |-----|-------------|
-| [Playwright](https://github.com/anthropics/mcp-playwright) | Browser automation -- test UIs, take screenshots, interact with web pages |
-| [Context7](https://github.com/upstash/context7) | Fetch up-to-date docs for any library directly into context (no API key needed) |
+| [Playwright](https://github.com/microsoft/playwright-mcp) | Browser automation — test UIs, screenshot, interact with pages |
+| [Context7](https://github.com/upstash/context7) | Up-to-date library docs in context (no API key needed) |
 
-## How It Works
-
-These skills follow the [Agent Skills](https://agentskills.io) open standard. Each skill is a `SKILL.md` file with YAML frontmatter.
+## Repo Structure
 
 ```
-repo/
-├── src/
+ronan-skills/
+├── .claude-plugin/
+│   ├── plugin.json          # Claude Code plugin manifest (name: "ro")
+│   └── marketplace.json     # Marketplace entry
+├── .cursor-plugin/
+│   └── plugin.json          # Cursor plugin manifest
+├── skills/
 │   ├── ralph/SKILL.md
 │   ├── write-a-prd/SKILL.md
 │   ├── tdd/SKILL.md
@@ -177,7 +116,7 @@ repo/
 │   ├── close-the-loop/SKILL.md
 │   ├── debug-escape/SKILL.md
 │   ├── post-mortem/SKILL.md
-│   ├── coding-principles/SKILL.md       + principles/*.md detail files
+│   ├── coding-principles/SKILL.md
 │   ├── grill-me/SKILL.md
 │   ├── ubiquitous-language/SKILL.md
 │   ├── git-guardrails/SKILL.md
@@ -189,16 +128,13 @@ repo/
 │   ├── perplexity-research/SKILL.md
 │   ├── create-skill/SKILL.md
 │   ├── setup-wizard/SKILL.md
-│   ├── doc-standards/SKILL.md
-│   ├── remotion-video/SKILL.md
-│   ├── video-script/SKILL.md
-│   ├── video-copy/SKILL.md
-│   ├── video-assets/SKILL.md
-│   ├── video-review/SKILL.md
-│   └── video-render/SKILL.md
+│   └── doc-standards/SKILL.md
+├── .env.example
 ├── README.md
 └── LICENSE
 ```
+
+Each skill is a `SKILL.md` with YAML frontmatter (`name`, `description`, `category`, ...). Follows the [Agent Skills](https://agentskills.io) open standard.
 
 ## License
 

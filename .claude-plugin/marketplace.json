@@ -1,0 +1,16 @@
+{
+  "name": "ronan-skills",
+  "owner": {
+    "name": "Ronan Connolly"
+  },
+  "metadata": {
+    "description": "Ronan's personal skills marketplace for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "ro",
+      "source": "./",
+      "description": "20 skills for development workflow, quality, browser/visual, research, and project setup."
+    }
+  ]
+}
