@@ -95,6 +95,30 @@ flyctl scale vm shared-cpu-2x -a <app>    # vertical (CPU/RAM preset)
 flyctl scale memory 1024 -a <app>         # memory only
 ```
 
+## Cost sizing cheatsheet
+
+`shared-cpu-1x` machine pricing (approx, Amsterdam tier — other regions have small multipliers):
+
+| Memory | $/month (always on) | $/hour |
+|--------|---------------------|--------|
+| 256MB  | $2.02 | $0.0028 |
+| 512MB  | $3.32 | $0.0046 |
+| 1GB    | $5.92 | $0.0082 |
+| 2GB    | $11.11 | $0.0154 |
+
+- **Stopped machine**: rootfs only — ~$0.15/GB-month of image size. For a 65MB image ≈ $0.01/mo.
+- **Volume**: $0.15/GB-month. **Minimum size is 1GB** — you cannot shrink below it, and `fly volumes extend` only goes up. Plan sizes carefully.
+- **Scale to zero** (`auto_stop_machines="suspend"` + `min_machines_running=0`) → you only pay compute while serving. A personal tool typically costs $0.30–$1/mo all-in.
+
+### `suspend` vs `stop` (both free of extra cost)
+
+| Mode | Cold start | When to use |
+|------|-----------|-------------|
+| `suspend` | ~200ms (keeps memory snapshot) | **Default for most apps** — UX win at zero cost |
+| `stop` | ~1-3s | Long-idle apps or edge cases where snapshots misbehave |
+
+Live pricing: https://fly.io/docs/about/pricing/
+
 ## Common failure modes
 
 - **"App not found"** — wrong `-a` or not authed to correct org (`flyctl orgs list`)

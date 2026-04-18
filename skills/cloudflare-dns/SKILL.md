@@ -21,31 +21,49 @@ Manage DNS records on Cloudflare via the API v4. Typical use: pointing a subdoma
 
 ## Process
 
-### 1. Load API token
+### 1. Load credentials
 
-Check in order for `CLOUDFLARE_API_TOKEN`:
+Check in order for `CLOUDFLARE_API_TOKEN` (required) and optionally `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_ACCOUNT_ID`:
 1. `${CLAUDE_PLUGIN_DATA}/.env` (preferred — plugin-wide, survives updates)
 2. `~/.config/ro/.env`
 3. Project root `.env`
 4. Shell env var
 
-If missing: direct user to https://dash.cloudflare.com/profile/api-tokens → **Create Token** → template "Edit zone DNS" (scopes: `Zone:DNS:Edit`, `Zone:Zone:Read`). Save:
+Expected shape:
+```
+CLOUDFLARE_API_TOKEN=...                      # required
+CLOUDFLARE_ZONE_ID=...                        # optional: skips lookup in step 2
+CLOUDFLARE_ACCOUNT_ID=...                     # optional: needed for tunnels/workers
+```
+
+If token missing: direct user to https://dash.cloudflare.com/profile/api-tokens → **Create Token** → template "Edit zone DNS" (scopes: `Zone:DNS:Edit`, `Zone:Zone:Read`; add `Tunnel:Edit` if you also plan to use tunnels). Save:
 
 ```bash
-mkdir -p "$CLAUDE_PLUGIN_DATA" && echo "CLOUDFLARE_API_TOKEN=..." >> "$CLAUDE_PLUGIN_DATA/.env"
+mkdir -p "$CLAUDE_PLUGIN_DATA" && chmod 700 "$CLAUDE_PLUGIN_DATA"
+cat >> "$CLAUDE_PLUGIN_DATA/.env" <<'EOF'
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ZONE_ID=...
+CLOUDFLARE_ACCOUNT_ID=...
+EOF
 chmod 600 "$CLAUDE_PLUGIN_DATA/.env"
 ```
 
 ### 2. Resolve zone ID
 
-Every DNS write needs the zone ID for the apex domain. `api.myapp.com` → apex is `myapp.com`.
+If `CLOUDFLARE_ZONE_ID` is already in the env **and** matches the apex of the record you're editing, skip the lookup. Otherwise resolve it:
 
 ```bash
 ZONE_ID=$(curl -s "https://api.cloudflare.com/client/v4/zones?name=myapp.com" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id')
 ```
 
-If `null`: the domain isn't on Cloudflare. Stop and tell the user.
+Quick sanity check when using the env zone ID:
+```bash
+curl -s "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result.name'
+```
+
+If `null`: the domain isn't on Cloudflare or the token lacks `Zone:Zone:Read`. Stop and tell the user.
 
 ### 3. Perform the operation
 
