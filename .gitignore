@@ -9,3 +9,7 @@
 
 # Playwright MCP (browser automation local state)
 .playwright-mcp/
+
+# Python bytecode
+__pycache__/
+*.pyc
