@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Auto-bump plugin version when skills/ has changed since last push.
+# - New skill directories added → bump minor (1.1.0 → 1.2.0)
+# - Existing skills modified   → bump patch (1.1.0 → 1.1.1)
+# - No skills/ changes         → no-op
+
+set -euo pipefail
+
+PLUGIN_JSON=".claude-plugin/plugin.json"
+
+# Only run if plugin.json exists
+[[ -f "$PLUGIN_JSON" ]] || exit 0
+
+# Read the remote and ref being pushed to
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Skip deletes
+  [[ "$local_sha" == "0000000000000000000000000000000000000000" ]] && continue
+
+  # Determine base: if remote_sha is all zeros (new branch), compare against HEAD~10 or root
+  if [[ "$remote_sha" == "0000000000000000000000000000000000000000" ]]; then
+    BASE="$(git rev-list --max-parents=0 HEAD | head -1)"
+  else
+    BASE="$remote_sha"
+  fi
+
+  # Check if any skills/ files changed
+  CHANGED_SKILLS=$(git diff --name-only "$BASE" "$local_sha" -- skills/ 2>/dev/null || true)
+  [[ -z "$CHANGED_SKILLS" ]] && continue
+
+  # Detect if new skill directories were added
+  NEW_DIRS=$(git diff --diff-filter=A --name-only "$BASE" "$local_sha" -- 'skills/*/SKILL.md' 2>/dev/null || true)
+
+  # Read current version
+  CURRENT=$(grep '"version"' "$PLUGIN_JSON" | sed 's/.*"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/')
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+  if [[ -n "$NEW_DIRS" ]]; then
+    # New skills added → bump minor
+    MINOR=$((MINOR + 1))
+    PATCH=0
+  else
+    # Only modifications → bump patch
+    PATCH=$((PATCH + 1))
+  fi
+
+  NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+  # Skip if version was already bumped manually in this push
+  [[ "$CURRENT" != "$NEW_VERSION" ]] || continue
+
+  # Update plugin.json
+  sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$NEW_VERSION\"/" "$PLUGIN_JSON"
+
+  # Update marketplace.json description skill count
+  # Use [0-9][0-9]* (one-or-more) instead of [0-9]* (zero-or-more) so the empty
+  # match before " skills" does not swallow the preceding space.
+  SKILL_COUNT=$(ls -d skills/*/SKILL.md 2>/dev/null | wc -l | tr -d ' ')
+  sed -i '' "s/[0-9][0-9]* skills/$SKILL_COUNT skills/g" .claude-plugin/marketplace.json 2>/dev/null || true
+
+  # Amend the latest commit with the version bump
+  git add "$PLUGIN_JSON" .claude-plugin/marketplace.json 2>/dev/null
+  git commit --amend --no-edit --no-verify >/dev/null 2>&1
+
+  echo "🔖 Auto-bumped plugin version: $CURRENT → $NEW_VERSION (skills/ changed)"
+
+  break  # Only process the first ref
+done
+
+exit 0
