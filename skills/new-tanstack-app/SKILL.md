@@ -123,7 +123,7 @@ Add `@tailwindcss/vite` plugin. Add `@import "tailwindcss";` to the root CSS.
 
 ### 5. Testing + API docs stack (always) → `/ro:testing-stack install`
 
-Delegate to `/ro:testing-stack install`. That sub-skill scaffolds the full six-layer pattern:
+Delegate to `/ro:testing-stack install`. That sub-skill scaffolds the full seven-layer pattern:
 
 1. Vitest unit tests
 2. Vitest integration tests against real upstreams
@@ -131,6 +131,7 @@ Delegate to `/ro:testing-stack install`. That sub-skill scaffolds the full six-l
 4. Bruno API collection with `local` / `production` / `mock` environments
 5. Zod + `@asteasolutions/zod-to-openapi` served at `/api/openapi`, Scalar docs at `/api/docs`
 6. Prism mock server on :4010 via `pnpm mock`
+7. k6 ad-hoc load tests (`scripts/loadtest.js` + `pnpm loadtest:smoke|local|prod|burst`); requires one-time `brew install k6`. Not in CI by default.
 
 Plus `package.json` scripts, three CI jobs (`e2e`, `integration`, `api-contract`) gating deploy, and documented anti-patterns (no blanket coverage, no global `.strict()`, no Redoc, no `x-faker`).
 

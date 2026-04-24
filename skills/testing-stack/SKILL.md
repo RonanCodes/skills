@@ -1,8 +1,8 @@
 ---
 name: testing-stack
-description: Wire the canonical testing + API-docs stack into a TanStack Start + Cloudflare Workers app. Installs Vitest (unit + integration), Playwright (e2e + visual), Bruno (API collection with local/production/mock envs), Zod + @asteasolutions/zod-to-openapi (served at /api/openapi), Scalar docs UI (at /api/docs), and Prism mock server (FE-dev fallback on :4010). Use when user wants to add tests, API tests, API docs, OpenAPI, Swagger-style docs, a mock server, contract testing, or bruno to a TanStack Start app. Invoked automatically by /ro:new-tanstack-app.
+description: Wire the canonical testing + API-docs stack into a TanStack Start + Cloudflare Workers app. Installs Vitest (unit + integration), Playwright (e2e + visual), Bruno (API collection with local/production/mock envs), Zod + @asteasolutions/zod-to-openapi (served at /api/openapi), Scalar docs UI (at /api/docs), Prism mock server (FE-dev fallback on :4010), and k6 ad-hoc load tests (smoke/local/prod profiles). Use when user wants to add tests, API tests, API docs, OpenAPI, Swagger-style docs, a mock server, contract testing, load testing, perf testing, or bruno to a TanStack Start app. Invoked automatically by /ro:new-tanstack-app.
 category: testing
-argument-hint: [install] [--no-bruno] [--no-mock] [--no-docs]
+argument-hint: [install] [--no-bruno] [--no-mock] [--no-docs] [--no-loadtest]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(pnpm dlx *) Bash(git *) Read Write Edit
 ---
 
@@ -17,13 +17,14 @@ Scaffold the six-layer testing and API-docs pattern documented in `connections-h
 /ro:testing-stack install --no-bruno   # skip Bruno collection
 /ro:testing-stack install --no-mock    # skip Prism mock server
 /ro:testing-stack install --no-docs    # skip /api/openapi + /api/docs (keeps Vitest + Playwright + Bruno only)
+/ro:testing-stack install --no-loadtest # skip k6 load-test scaffold
 ```
 
 Defaults install everything. Opt-outs are for unusual cases (e.g. the app is not an HTTP API).
 
 ## What you get
 
-Six layers, one OpenAPI spec feeding all of them:
+Seven layers, one OpenAPI spec feeding the first six:
 
 1. **Vitest unit** — `src/**/*.test.{ts,tsx}`
 2. **Vitest integration** — `tests/integration/**/*.test.ts`, hits real upstreams
@@ -31,8 +32,9 @@ Six layers, one OpenAPI spec feeding all of them:
 4. **Bruno API collection** — `/bruno/` with local/production/mock envs
 5. **Zod + OpenAPI + Scalar** — spec at `/api/openapi`, docs at `/api/docs`
 6. **Prism mock server** — FE-dev fallback on `:4010` via `pnpm mock`
+7. **k6 ad-hoc load tests** — `scripts/loadtest.js` with smoke/standard/burst profiles, runnable against localhost or prod
 
-All six run on every PR via GitHub Actions jobs that gate deploy.
+Layers 1-6 run on every PR via GitHub Actions jobs that gate deploy. Layer 7 is intentionally ad-hoc (run before launches or after perf-sensitive changes) — not in CI by default to avoid k6 install in every Action and to avoid hammering prod on every push.
 
 ## Prerequisites
 
@@ -280,7 +282,103 @@ tests {
 
 Bruno also doesn't commit the active environment (tracked in usebruno/bruno#303). Add a `collection.bru` with a `docs { }` block so the first thing a user sees is "pick the local environment."
 
-### 7. Prism mock server (skip if `--no-mock`)
+### 7. k6 load tests (skip if `--no-loadtest`)
+
+k6 is a JS-scripted load tester (Grafana Labs, Apache 2.0). No npm dep — installed once via `brew install k6` (macOS) or the platform-equivalent. The script lives in the repo as plain JS so the dev edits scenarios alongside the app.
+
+**`scripts/loadtest.js`** — parameterised template; the dev fills in `SCENARIOS` for app endpoints:
+
+```js
+import http from 'k6/http'
+import { check, group, sleep } from 'k6'
+import { Rate } from 'k6/metrics'
+import { randomItem } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
+
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000'
+const PROFILE = __ENV.PROFILE || 'standard'
+
+const profiles = {
+  smoke: {
+    stages: [
+      { duration: '10s', target: 5 },
+      { duration: '20s', target: 5 },
+      { duration: '5s', target: 0 },
+    ],
+  },
+  standard: {
+    stages: [
+      { duration: '30s', target: 100 },
+      { duration: '60s', target: 100 },
+      { duration: '30s', target: 0 },
+    ],
+  },
+  burst: {
+    stages: [
+      { duration: '10s', target: 200 },
+      { duration: '30s', target: 200 },
+      { duration: '10s', target: 0 },
+    ],
+  },
+}
+
+export const options = {
+  ...profiles[PROFILE],
+  thresholds: {
+    http_req_failed: ['rate<0.02'],
+    http_req_duration: ['p(95)<800', 'p(99)<2000'],
+    rate_limited: ['rate<0.5'],
+  },
+}
+
+const rateLimited = new Rate('rate_limited')
+
+// TODO: replace with real endpoints + realistic traffic mix.
+// Each scenario gets a tag so per-endpoint thresholds work.
+const SCENARIOS = [
+  { weight: 0.5, run: () => http.get(`${BASE_URL}/`, { tags: { endpoint: 'home' } }) },
+  { weight: 0.5, run: () => http.get(`${BASE_URL}/api/health`, { tags: { endpoint: 'health' } }) },
+]
+
+function pickWeighted(items) {
+  const r = Math.random()
+  let acc = 0
+  for (const it of items) { acc += it.weight; if (r < acc) return it }
+  return items[items.length - 1]
+}
+
+export default function () {
+  const res = pickWeighted(SCENARIOS).run()
+  rateLimited.add(res.status === 429)
+  check(res, { 'status ok or 429': (r) => r.status < 500 || r.status === 429 })
+  sleep(Math.random() * 2 + 0.5)
+}
+
+export function handleSummary(data) {
+  const m = data.metrics
+  const fmt = (v) => (v === undefined ? 'n/a' : `${v.toFixed(0)}ms`)
+  const pct = (v) => (v === undefined ? 'n/a' : `${(v * 100).toFixed(2)}%`)
+  return {
+    stdout: [
+      '',
+      `Profile: ${PROFILE}    Target: ${BASE_URL}`,
+      `Total requests:   ${m.http_reqs?.values?.count ?? 0}`,
+      `Failure rate:     ${pct(m.http_req_failed?.values?.rate)}`,
+      `Rate-limited:     ${pct(m.rate_limited?.values?.rate)}`,
+      `p50 / p95 / p99:  ${fmt(m.http_req_duration?.values?.med)} / ${fmt(m.http_req_duration?.values?.['p(95)'])} / ${fmt(m.http_req_duration?.values?.['p(99)'])}`,
+      '',
+    ].join('\n'),
+    'loadtest-summary.json': JSON.stringify(data, null, 2),
+  }
+}
+```
+
+Add `loadtest-summary.json` to `.gitignore` (regenerated each run).
+
+Add a README section documenting the prereq (`brew install k6`), the 4 commands, and the per-IP rate-limiter caveat (single-machine prod runs hit per-IP limits fast; track `rate_limited` separately so high 429s don't inflate failure rate; run from multiple egress IPs via k6 Cloud or a GH Actions matrix when you need to test past the limiter).
+
+For agent / LLM apps, also add a `chat` profile (e.g. 10 VUs / 5 min) — chat endpoints have minute-long tail latencies and short bursty profiles miss the long-tail behaviour that real users see. Reference: `[[ai-agent-stack]]` in `llm-wiki-research`.
+
+### 8. Prism mock server (skip if `--no-mock`)
 
 **`scripts/generate-openapi.ts`** — dumps spec to `openapi.json` at repo root:
 
@@ -300,7 +398,7 @@ Add `openapi.json` to `.gitignore` (regenerated by `pnpm mock`).
 
 Run Prism **without `--dynamic`** so the schema examples get used instead of faker Lorem ipsum.
 
-### 8. `package.json` scripts
+### 9. `package.json` scripts
 
 ```jsonc
 {
@@ -313,11 +411,15 @@ Run Prism **without `--dynamic`** so the schema examples get used instead of fak
   "test:api": "start-server-and-test dev http://localhost:3000 'cd bruno && bru run . -r --env local'",
   "test:api:prod": "cd bruno && bru run . -r --env production",
   "openapi:dump": "tsx scripts/generate-openapi.ts",
-  "mock": "pnpm run openapi:dump && prism mock openapi.json --port 4010"
+  "mock": "pnpm run openapi:dump && prism mock openapi.json --port 4010",
+  "loadtest:smoke": "PROFILE=smoke BASE_URL=http://localhost:3000 k6 run scripts/loadtest.js",
+  "loadtest:local": "BASE_URL=http://localhost:3000 k6 run scripts/loadtest.js",
+  "loadtest:prod": "BASE_URL=https://<deployed-host> k6 run scripts/loadtest.js",
+  "loadtest:burst": "PROFILE=burst BASE_URL=http://localhost:3000 k6 run scripts/loadtest.js"
 }
 ```
 
-### 9. CI jobs (`.github/workflows/ci.yml`)
+### 10. CI jobs (`.github/workflows/ci.yml`)
 
 Three parallel jobs after `quality-checks` (format + lint + build + unit test): `e2e`, `integration`, `api-contract`. All block `deploy`.
 
