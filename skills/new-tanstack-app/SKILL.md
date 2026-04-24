@@ -49,6 +49,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
  13. --domain    → /ro:cloudflare-dns add <host>           (post-deploy)
  14. deploy      → /ro:cf-ship                             (unless --skip-deploy)
  15. GitHub CI  → add .github/workflows/ci.yml            (quality gate + auto-deploy)
+ 15a. GitHub branch protection + squash-only merges (see /ro:stacked-prs for the rebase flow)
  16. final commit → /ro:commit                             (emoji format)
 ```
 
@@ -142,15 +143,25 @@ pnpm add -D prettier eslint typescript \
   @typescript-eslint/parser @typescript-eslint/eslint-plugin \
   eslint-config-prettier prettier-plugin-tailwindcss \
   husky lint-staged \
-  @commitlint/cli @commitlint/config-conventional
-pnpm dlx husky init
+  @commitlint/cli
+pnpm exec husky init
 ```
 
-- `.prettierrc.json`, flat `eslint.config.js` with `strictTypeChecked` + `prettier` last
-- `tsconfig.json` strict (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
-- `lint-staged` block in `package.json`
-- `.husky/pre-commit` (`pnpm lint-staged`) and `.husky/commit-msg` (`pnpm commitlint --edit $1`)
-- `commitlint.config.js` enforcing the **emoji + conventional** format (✨ feat / 🐛 fix / 🧪 test / 📝 docs / 🧹 chore / ♻️ refactor / 🚀 deploy / 🔧 config / ⚡ perf / 🔒 security)
+- `.prettierrc.json`, flat `eslint.config.js` with `strictTypeChecked` + `prettier` last.
+- `tsconfig.json` strict (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
+- `package.json` scripts:
+  - `"format": "prettier --check ."` (CI gate).
+  - `"format:write": "prettier --write ."` (one-shot baseline, run once after scaffolding to set the repo-wide baseline).
+  - `"prepare": "husky"` (bootstraps hooks on every `pnpm install`).
+- `lint-staged` block in `package.json` that runs `prettier --write` on the usual source globs.
+- `.husky/pre-commit` → `pnpm exec lint-staged` (auto-format staged files before every commit: eliminates the class of "CI fails on formatting" PRs).
+- `.husky/commit-msg` → `pnpm exec commitlint --edit "$1"`.
+- `.husky/pre-push` → `pnpm quality-checks` (format + lint + build + test + audit). Bypassable with `SKIP_QUALITY_CHECKS=1 git push --no-verify` for real emergencies.
+- `commitlint.config.mjs` enforcing the **emoji + conventional** format from `CLAUDE.md` (✨ feat / 🐛 fix / 🧪 test / 📝 docs / 🧹 chore / ♻️ refactor / 🚀 deploy / 🔧 config / ⚡ perf / 🔒 security). Use a custom parser-preset + two rules (`emoji-allowed`, `emoji-type-matches`). Do **not** use `@commitlint/config-conventional`: it doesn't know about the emoji requirement, so it'd half-enforce the convention. Copy the config verbatim from `connections-helper/commitlint.config.mjs`.
+
+After scaffolding, run `pnpm format:write` once to set the baseline so subsequent pre-commit hooks have nothing to change on untouched files.
+
+Reference: `connections-helper/docs/adr/0002-github-branch-protection-squash-only-merges.md`.
 
 ### 7. `--auth` → `/ro:better-auth install`
 
@@ -347,6 +358,53 @@ gh secret set POSTHOG_PROJECT_KEY --env production --repo $REPO --body "$POSTHOG
 Why `environment: production` and not repo-level secrets: preview branches / PRs never see the deploy token. Required status checks can gate deploys per-environment. Audit log shows which env a secret was used in.
 
 Skip with `--skip-ci` if (and only if) the user explicitly doesn't want CI. Default is on.
+
+### 13a. GitHub branch protection + squash-only merges (always, unless `--skip-ci`)
+
+After CI is wired and the first push lands so GitHub knows the check contexts exist, lock `main` down. Two API calls, both idempotent.
+
+**1. Branch protection on `main`:**
+
+```bash
+REPO=<owner>/<repo>
+gh api -X PUT "repos/$REPO/branches/main/protection" --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "Quality checks (format + lint + build + test)"
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": false,
+  "lock_branch": false,
+  "allow_fork_syncing": false
+}
+JSON
+```
+
+Extend the `contexts` list with every CI job name that should gate merging. The job **name** is what appears (look at `gh pr checks <PR>` output), not the workflow name. If `/ro:testing-stack` is wired, add: `Playwright e2e`, `Integration tests (real external APIs)`, `API contract (Bruno)`, `Playwright visual diff`, `Accessibility + performance budget`, `Secret scan (gitleaks + trufflehog)`, `Dependency audit (pnpm)`. Do **not** include the deploy job: it only runs on push to main, never on PRs, and would permanently block merges.
+
+**2. Repo-level squash-only merge settings:**
+
+```bash
+gh api -X PATCH "repos/$REPO" \
+  -f allow_squash_merge=true \
+  -F allow_merge_commit=false \
+  -F allow_rebase_merge=false \
+  -F delete_branch_on_merge=true \
+  -f squash_merge_commit_title=PR_TITLE \
+  -f squash_merge_commit_message=PR_BODY
+```
+
+Why these settings, including the research backing squash-only: `connections-helper/docs/adr/0002-github-branch-protection-squash-only-merges.md`. tl;dr: 14 of 18 surveyed TS/JS flagship projects (TypeScript, Next.js, React, Vite, Astro, Svelte, tRPC, Prettier, ESLint, Playwright, TanStack Query, Tailwind, Vue core, Hono) use squash-only on main. The outliers are the less disciplined ones.
+
+**Stacked-PR workflow:** once protection is on, stacked PRs need rebase-after-parent-merges. Codified in `/ro:stacked-prs`.
 
 ### 14. Final commit — `/ro:commit`
 
