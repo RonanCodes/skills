@@ -36,11 +36,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
        --db d1 (default)  → inline D1 wiring
        --db neon          → /ro:neon install + project + push-secret
   3. UI: tailwind + shadcn + lucide                       (inline)
-  4. Testing + API docs stack                              (inline, expanded)
-     - Vitest (unit + integration), Playwright (e2e + visual)
-     - Bruno collection (local/production/mock envs)
-     - Zod + zod-to-openapi → /api/openapi + /api/docs (Scalar)
-     - Prism mock server on :4010 for FE-dev fallback
+  4. Testing + API docs                → /ro:testing-stack install
   5. Code hygiene: prettier + eslint + husky + commitlint (inline)
   6. --auth              → /ro:better-auth install
   7. --ai-sdk            → install `ai` + `@ai-sdk/anthropic` + `@ai-sdk/openai` + `@ai-sdk/google`; scaffold `lib/models.ts`
@@ -124,142 +120,20 @@ pnpm dlx shadcn@latest add button dialog input form
 
 Add `@tailwindcss/vite` plugin. Add `@import "tailwindcss";` to the root CSS.
 
-### 5. Testing + API docs stack (always)
+### 5. Testing + API docs stack (always) → `/ro:testing-stack install`
 
-This is the canonical stack documented in `connections-helper/docs/adr/0001-testing-and-docs-stack.md`. Six layers, one OpenAPI spec feeding all of them. Don't cherry-pick — add all six on initial scaffold so they compound.
+Delegate to `/ro:testing-stack install`. That sub-skill scaffolds the full six-layer pattern:
 
-#### 5a. Install dependencies
+1. Vitest unit tests
+2. Vitest integration tests against real upstreams
+3. Playwright e2e (Chromium, with visual-regression opt-in)
+4. Bruno API collection with `local` / `production` / `mock` environments
+5. Zod + `@asteasolutions/zod-to-openapi` served at `/api/openapi`, Scalar docs at `/api/docs`
+6. Prism mock server on :4010 via `pnpm mock`
 
-```bash
-# Unit + integration + e2e
-pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom
-pnpm add -D @playwright/test start-server-and-test
-pnpm dlx playwright install
+Plus `package.json` scripts, three CI jobs (`e2e`, `integration`, `api-contract`) gating deploy, and documented anti-patterns (no blanket coverage, no global `.strict()`, no Redoc, no `x-faker`).
 
-# API collection
-pnpm add -D @usebruno/cli
-
-# OpenAPI + docs + mock
-pnpm add zod @asteasolutions/zod-to-openapi
-pnpm add -D @stoplight/prism-cli tsx
-```
-
-#### 5b. Vitest configs
-
-- `vitest.config.ts` — unit tests. `environment: 'jsdom'`, `include: ['src/**/*.test.{ts,tsx}']`, `passWithNoTests: true`.
-- `vitest.integration.config.ts` — integration tests. `environment: 'node'`, `include: ['tests/integration/**/*.test.ts']`, `retry: 1`, 30s timeout.
-
-#### 5c. Playwright config
-
-- `playwright.config.js` with Chromium only, `baseURL: http://localhost:3000`, `webServer: { command: 'pnpm dev', url: 'http://localhost:3000', reuseExistingServer: !process.env.CI, timeout: 120000 }`. CI retries 2x.
-- `testIgnore: process.env.PLAYWRIGHT_VISUAL === '1' ? undefined : ['**/visual.spec.ts']` so visual regression is opt-in via its own workflow.
-
-#### 5d. Zod schemas + OpenAPI spec
-
-- `src/server/schemas.ts`: Zod schemas with `.openapi(name, { description, example })` metadata. Put realistic `example` objects on the 2-3 headline response schemas only (e.g. the main entity, any ErrorResponse), not on every schema.
-- `src/server/openapi.ts`: `OpenAPIRegistry` registers every path. `buildOpenApiDocument({ servers })` returns the OpenAPI 3.1 document.
-- `src/server/validate.ts`: shared `validate(schema, input)` helper returning `{ ok: true, data } | { ok: false, response }`.
-
-#### 5e. `/api/openapi` and `/api/docs` routes
-
-```ts
-// src/routes/api/openapi.ts — origin-aware server URL, per-origin memoisation
-const cache = new Map<string, unknown>()
-export const Route = createFileRoute('/api/openapi')({
-  server: { handlers: { GET: ({ request }) => {
-    const origin = new URL(request.url).origin
-    if (!cache.has(origin)) cache.set(origin, buildOpenApiDocument({ servers: [{ url: origin }] }))
-    return Response.json(cache.get(origin), { headers: { 'cache-control': 'public, max-age=300' } })
-  }}}
-})
-
-// src/routes/api/docs.ts — Scalar via CDN, version-pinned
-const html = `<!doctype html><html><head><title>API</title></head><body>
-  <script id="api-reference" data-url="/api/openapi"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.52.6"></script>
-</body></html>`
-```
-
-Note: TanStack file routing treats `.` as a path separator, so `/api/openapi.json` is not a valid route name. Use `/api/openapi` and still return JSON.
-
-#### 5f. Bruno collection
-
-```
-bruno/
-  bruno.json
-  collection.bru            # docs block telling users to pick an env
-  environments/
-    local.bru               # baseUrl: http://localhost:3000
-    production.bru          # baseUrl: <deployed host>
-    mock.bru                # baseUrl: http://localhost:4010
-  <folder-per-resource>/
-    <method>-<name>.bru     # status + shape assertions per route
-```
-
-Assertions: `res.status: eq 200`, `res.body.X: isString|isNumber|isArray`. For object shape checks, use `tests { test("...", () => expect(res.body.X).to.be.an("object")) }` since Bruno has no built-in `isObject` assertion.
-
-#### 5g. Prism mock server
-
-- `scripts/generate-openapi.ts` dumps the OpenAPI spec to `openapi.json` at repo root via `tsx`.
-- `openapi.json` gitignored, regenerated by `pnpm mock`.
-- Run Prism **without `--dynamic`** so schema examples are used instead of faker Lorem ipsum.
-- `bruno/environments/mock.bru` points at Prism's port so the same collection can be aimed at the mock manually during FE dev.
-
-#### 5h. `package.json` scripts
-
-```jsonc
-{
-  "test": "vitest run",
-  "test:e2e": "playwright test",
-  "test:visual": "PLAYWRIGHT_VISUAL=1 playwright test e2e/visual.spec.ts",
-  "test:integration": "start-server-and-test dev http://localhost:3000 'vitest run --config vitest.integration.config.ts'",
-  "test:api": "start-server-and-test dev http://localhost:3000 'cd bruno && bru run . -r --env local'",
-  "test:api:prod": "cd bruno && bru run . -r --env production",
-  "openapi:dump": "tsx scripts/generate-openapi.ts",
-  "mock": "pnpm run openapi:dump && prism mock openapi.json --port 4010"
-}
-```
-
-#### 5i. CI jobs (`.github/workflows/ci.yml`)
-
-Four parallel jobs after `quality-checks` (format + lint + build + unit test): `e2e`, `integration`, `api-contract` (Bruno). All block `deploy`.
-
-```yaml
-e2e:
-  needs: test
-  steps:
-    - run: pnpm install --frozen-lockfile
-    - run: pnpm exec playwright install --with-deps chromium
-    - run: pnpm db:migrate:local    # if using D1
-    - run: pnpm test:e2e
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with: { name: playwright-report, path: playwright-report/ }
-
-integration:
-  needs: test
-  steps:
-    - ...
-    - run: pnpm test:integration
-
-api-contract:
-  needs: test
-  steps:
-    - ...
-    - run: pnpm test:api
-
-deploy:
-  needs: [test, e2e, integration, api-contract]
-  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-```
-
-#### 5j. What NOT to do
-
-- No blanket coverage threshold (80%). Ratchet-style is slightly less wrong but still solves a non-problem at solo scale.
-- No `.strict()` on Zod objects by default. Breaks callers that send extra fields; only earns its keep on externally-consumed APIs.
-- No Redoc alongside Scalar by default. One doc UI is enough. Add Redoc only if readers are auditing cross-references.
-- No `x-faker` hints or custom mock handlers. Schema `example` fields cover it.
-- No `test:api:mock` Bruno variant. Real `pnpm test:api` against live is authoritative for solo.
+Reference: `connections-helper/docs/adr/0001-testing-and-docs-stack.md`.
 
 ### 6. Code hygiene (always)
 
