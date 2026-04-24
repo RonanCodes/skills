@@ -1,8 +1,8 @@
 ---
 name: trend-scan
-description: Two modes — (1) discover what's trending right now across Hacker News, X, Reddit (no topic needed), returning a picklist of top N themes; (2) deep-dive a specific topic across the same sources and return a ranked brief. Flow: discover → user picks → deep-dive.
+description: Two modes — (1) discover what's trending right now across Hacker News, Reddit, YouTube, Product Hunt (no topic needed), returning a picklist of top N themes; (2) deep-dive a specific topic across the same sources and return a ranked brief. Flow: discover → user picks → deep-dive. YouTube hits matching a "load-bearing" heuristic get transcript snippets inlined by default.
 category: research
-argument-hint: [topic] [--discover] [--sources hn,x,reddit,linkedin] [--since 24h|7d|30d] [--limit N]
+argument-hint: [topic] [--discover] [--sources hn,reddit,youtube,producthunt,x,linkedin] [--since 24h|7d|30d] [--limit N] [--rich auto|all|off]
 allowed-tools: Bash(curl *) Read
 ---
 
@@ -34,6 +34,13 @@ The natural loop: `/ro:trend-scan` → pick a theme → `/ro:trend-scan "<theme>
 - **Sources:** `hn,reddit,youtube,producthunt` (X and LinkedIn are opt-in — X because nitter mirrors are currently dead, LinkedIn because cookie auth is required)
 - **Window:** `7d`
 - **Limit:** 10 items per source in deep-dive; 10 themes total in discover
+- **Rich mode:** `auto` for YouTube in discover mode (transcript snippets inlined for the ~2-5 high-signal hits per scan). Override with `--rich off` for a lean scan, or `--rich all` to transcript every YT hit (slow)
+
+## Why rich mode matters
+
+Without inline transcripts, trend-scan surfaces YouTube talks by title and view count only. A keynote like "The Future of MCP" is logged as a high-view hit; the actual substance (new concepts, timelines, quotes the user would want to act on) stays invisible until someone watches it. The auto-rich default closes that gap: for videos that match the trigger heuristic, ~1000 words of captions land inline in the scan output, so the caller (Claude or user) can react immediately.
+
+Precedent: the "server cards" concept went untracked for 4 days in 2026-04 because its keynote was logged by title only. Since fixed.
 
 ## Mode: Discover
 
@@ -42,7 +49,7 @@ Use this when the caller hasn't named a topic yet.
 1. **Fan out** — pull the most-recent/highest-engagement feed from each source:
    - HN: `/ro:hn-scan frontpage --limit 30` + `/ro:hn-scan show --since 7d --limit 15`
    - Reddit: hit 4–6 curated subs via `/ro:reddit-scan r/<sub> --sort top --since week --limit 10` each. Default sub set: `r/LocalLLaMA`, `r/ClaudeAI`, `r/singularity`, `r/programming`, `r/hackernews`, `r/OpenAI`
-   - YouTube: `/ro:youtube-scan` in discover mode — runs 3 seed searches (`AI`, `coding`, `new tool`), dedupe by URL, sort by views
+   - YouTube: `/ro:youtube-scan --rich auto` in discover mode — runs 3 seed searches (`AI`, `coding`, `new tool`), dedupe by URL, sort by views, and inlines transcript snippets for hits matching the rich heuristic (default: views ≥ 50k OR title contains mcp/agent/claude/anthropic/openai/protocol/spec/sdk)
    - Product Hunt: `/ro:producthunt-scan` — today's feed, cluster by theme keywords
    - X: `/ro:x-scan "search:AI"` (or a set of broad seeds) — be ready for nitter failure, skip cleanly
 2. **Normalise** — same shape as deep-dive (see below).
