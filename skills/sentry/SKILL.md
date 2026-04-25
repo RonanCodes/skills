@@ -64,6 +64,10 @@ if (typeof window !== "undefined" && import.meta.env.PROD) {
         maskAllInputs: true, // safe default; flip off only if you've audited all inputs
         blockAllMedia: false,
       }),
+      Sentry.feedbackIntegration({
+        colorScheme: "system",
+        showBranding: false,
+      }),
     ],
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0.1, // ambient coverage for low-traffic; drop to 0.01 at scale
@@ -73,6 +77,32 @@ if (typeof window !== "undefined" && import.meta.env.PROD) {
 ```
 
 **Defaults rationale:** integrations array is the load-bearing line — `replaysOnErrorSampleRate` is a no-op without `replayIntegration()`, same for `tracesSampleRate` without `browserTracingIntegration()`. Skipping it is the most common reason "Sentry's wired but I see nothing."
+
+**`feedbackIntegration` is on by default** for utility apps. It renders a small floating "Report a Bug" button that opens a one-shot form (name, email, description, optional screenshot) and creates a Sentry issue tagged as user feedback. For a no-auth side project this replaces the missing contact form. Drop it for apps that already have a richer in-app feedback path.
+
+### Cross-link with PostHog
+
+When PostHog is also in the app, link the two so a Sentry issue points at the matching PostHog session replay. Drop this snippet at the end of `initSentry()`:
+
+```ts
+// after Sentry.init(...)
+void linkPostHog(Sentry)
+
+async function linkPostHog(Sentry: typeof import("@sentry/react")) {
+  try {
+    const { initPostHog, posthog } = await import("./posthog")
+    await initPostHog() // idempotent
+    const distinctId = posthog.get_distinct_id?.()
+    if (distinctId) Sentry.setUser({ id: distinctId })
+    const sessionUrl = posthog.get_session_replay_url?.()
+    if (sessionUrl) Sentry.setTag("posthog.session_url", sessionUrl)
+  } catch (err) {
+    console.warn("[sentry] posthog cross-link skipped", err)
+  }
+}
+```
+
+`get_session_replay_url` exists on `posthog-js` ≥ 1.115. The tag becomes a clickable URL in the Sentry issue UI — one click jumps from "what broke" to "what was the user doing right before it broke." The linker is fire-and-forget so it doesn't block Sentry's own init.
 
 Server (Cloudflare Workers) — `src/lib/sentry-server.ts`:
 
