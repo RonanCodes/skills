@@ -4,6 +4,10 @@ description: Ship accessibility as a CI gate, not a hope. Wires axe-core unit te
 category: quality-review
 argument-hint: [--runner vitest|jest] [--lighthouse] [--skip-e2e]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:adapter
 ---
 
 # Accessibility CI

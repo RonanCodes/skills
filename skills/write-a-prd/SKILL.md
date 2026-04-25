@@ -4,6 +4,10 @@ description: Generate a PRD through an interactive interview. Quick mode writes 
 category: development
 argument-hint: [--quick | --plan] <feature-name>
 allowed-tools: Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:input
+  - platform:agnostic
+  - role:rules
 ---
 
 # Write a PRD

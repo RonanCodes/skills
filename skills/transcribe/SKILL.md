@@ -3,6 +3,10 @@ name: transcribe
 description: Transcribe audio or video files to text via OpenAI Whisper API or local whisper-cpp. Standalone utility — also used by ingest-video for meeting recordings and screen captures.
 user-invocable: true
 allowed-tools: Bash(curl *) Bash(ffmpeg *) Bash(which *) Bash(brew *) Bash(mkdir *) Bash(date *) Bash(cat *) Bash(wc *) Bash(python3 *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:input
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Transcribe

@@ -4,6 +4,10 @@ description: Compare images for visual correctness using pixel diff and Claude v
 category: browser-visual
 argument-hint: <image1|url> <image2> [--threshold 95] [--baseline] [--reference <path|url>] [--selector <css>] [--reference-page <url>] [--reference-selector <css>]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Visual Diff

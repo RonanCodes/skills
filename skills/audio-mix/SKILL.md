@@ -3,6 +3,10 @@ name: audio-mix
 description: Mix multiple audio tracks (voice, music, SFX) into a single output file via ffmpeg. Layer narration over background music, add sound effects at timestamps, adjust volumes.
 user-invocable: true
 allowed-tools: Bash(ffmpeg *) Bash(ffprobe *) Bash(which *) Bash(brew *) Bash(mkdir *) Bash(date *) Bash(cat *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:audio
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Audio Mix

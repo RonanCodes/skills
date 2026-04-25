@@ -4,6 +4,10 @@ description: AI-powered web research using the Perplexity API. Searches the live
 category: research
 argument-hint: <query> [--model sonar|sonar-pro|sonar-reasoning-pro]
 allowed-tools: Bash(curl *) Read Write Edit
+content-pipeline:
+  - pipeline:input
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Perplexity Research

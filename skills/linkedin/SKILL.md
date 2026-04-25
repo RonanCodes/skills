@@ -4,6 +4,10 @@ description: Manage your LinkedIn via the official API — create posts, fetch y
 category: social
 argument-hint: <auth | post <text> | me | draft <about|headline|experience|education|skills> [text]>
 allowed-tools: Bash(curl *) Bash(python3 *) Bash(open *) Bash(pbcopy) Read Write Edit
+content-pipeline:
+  - pipeline:distribution
+  - platform:linkedin
+  - role:adapter
 ---
 
 # LinkedIn

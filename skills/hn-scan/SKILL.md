@@ -4,6 +4,10 @@ description: Scan Hacker News for trends, hot threads, or specific topics. Retur
 category: research
 argument-hint: <query | hn-url | "frontpage" | "show" | "ask"> [--limit N] [--since 24h|7d|30d]
 allowed-tools: Bash(curl *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:agnostic
+  - role:scanner
 ---
 
 # HN Scan

@@ -4,6 +4,10 @@ description: Post-ship launch-ready polish audit. Walks a freshly-shipped web ap
 category: quality-review
 argument-hint: [--app <dir>] [--only <checks>] [--skip <checks>] [--fix]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:orchestrator
 ---
 
 # App Polish

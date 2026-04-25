@@ -4,6 +4,10 @@ description: Extract cookies from Firefox for authenticated web scraping. Reads 
 category: browser-visual
 user-invocable: false
 allowed-tools: Bash(sqlite3 *) Bash(ls *) Bash(find *) Bash(cp *) Bash(rm *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:multi
+  - role:primitive
 ---
 
 # Firefox Cookie Extractor

@@ -4,6 +4,10 @@ description: Scan LinkedIn posts for a URL or pasted content, or fetch recent po
 category: research
 argument-hint: <linkedin-url | "paste" | @person-slug> [--limit N]
 allowed-tools: Bash(curl *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:linkedin
+  - role:scanner
 ---
 
 # LinkedIn Scan

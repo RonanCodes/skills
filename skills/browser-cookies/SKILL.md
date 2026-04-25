@@ -4,6 +4,10 @@ description: Extract cookies for a domain from the user's browser (Firefox, Brav
 category: infra
 argument-hint: <domain> [--browser brave|chrome|arc|chromium|edge|firefox|auto] [--format header|json|jar]
 allowed-tools: Bash(sqlite3 *) Bash(uv *) Bash(python3 *) Read Write
+content-pipeline:
+  - pipeline:scan
+  - platform:multi
+  - role:primitive
 ---
 
 # Browser Cookies

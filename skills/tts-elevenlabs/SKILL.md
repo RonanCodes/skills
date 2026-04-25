@@ -3,6 +3,10 @@ name: tts-elevenlabs
 description: Text-to-speech via ElevenLabs API. Converts text or a script file to high-quality MP3. Standalone utility — also called by generate-podcast and generate-video for voiceover.
 user-invocable: true
 allowed-tools: Bash(curl *) Bash(ffmpeg *) Bash(which *) Bash(brew *) Bash(mkdir *) Bash(date *) Bash(cat *) Bash(wc *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:audio
+  - platform:agnostic
+  - role:primitive
 ---
 
 # TTS — ElevenLabs

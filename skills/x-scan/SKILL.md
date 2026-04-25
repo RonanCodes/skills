@@ -4,6 +4,10 @@ description: Scan X (Twitter) for posts from a user, search results, or single-t
 category: research
 argument-hint: <tweet-url | @user | "search:topic"> [--limit N]
 allowed-tools: Bash(curl *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:x
+  - role:scanner
 ---
 
 # X Scan

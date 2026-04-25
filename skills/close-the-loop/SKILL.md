@@ -4,6 +4,10 @@ description: Automated verification loop that ensures work is done — tests pas
 category: development
 argument-hint: [--all | --story <id> | --url <url> | --design-match <plan.json>]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:orchestrator
 ---
 
 # Close the Loop

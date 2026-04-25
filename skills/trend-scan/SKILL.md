@@ -4,6 +4,10 @@ description: Two modes — (1) discover what's trending right now across Hacker 
 category: research
 argument-hint: [topic] [--discover] [--sources hn,reddit,youtube,producthunt,x,linkedin] [--since 24h|7d|30d] [--limit N] [--rich auto|all|off]
 allowed-tools: Bash(curl *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:multi
+  - role:orchestrator
 ---
 
 # Trend Scan

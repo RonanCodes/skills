@@ -4,6 +4,10 @@ description: Wire Playwright screenshot baselines with CI PR-diff comments to pr
 category: quality-review
 argument-hint: [--routes <comma-list>] [--viewports <list>] [--update-baselines]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:adapter
 ---
 
 # Visual Regression

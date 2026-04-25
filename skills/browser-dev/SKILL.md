@@ -4,6 +4,10 @@ description: Lightweight browser automation via custom scripts. Use when Playwri
 category: browser-visual
 argument-hint: <url> [--screenshot] [--check] [--script <path>] [--flow "description"]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Browser Dev

@@ -3,6 +3,10 @@ name: music-elevenlabs
 description: Generate background music from text prompts via ElevenLabs Music API. Outputs MP3 files up to 10 minutes. Use for video soundtracks, podcast intros, ambient backgrounds.
 user-invocable: true
 allowed-tools: Bash(curl *) Bash(ffmpeg *) Bash(which *) Bash(mkdir *) Bash(date *) Bash(cat *) Bash(wc *) Bash(python3 *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:audio
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Music — ElevenLabs

@@ -4,6 +4,10 @@ description: Browser-based verification using Playwright MCP or Claude-in-Chrome
 category: browser-visual
 argument-hint: <url> [--flow <steps>] [--responsive] [--no-screenshot]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Playwright Check

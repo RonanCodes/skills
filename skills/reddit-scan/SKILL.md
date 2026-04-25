@@ -4,6 +4,10 @@ description: Scan Reddit for hot threads in a subreddit, topic search, or a sing
 category: research
 argument-hint: <reddit-url | r/subreddit | "search:topic"> [--limit N] [--sort hot|top|new] [--since day|week|month|year]
 allowed-tools: Bash(curl *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:reddit
+  - role:scanner
 ---
 
 # Reddit Scan

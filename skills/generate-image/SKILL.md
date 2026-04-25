@@ -3,6 +3,10 @@ name: generate-image
 description: Generate images from text prompts via Google Gemini (Nano Banana 2). Outputs PNG files. Use for thumbnails, slide imagery, infographic assets, social cards, or standalone image generation.
 user-invocable: true
 allowed-tools: Bash(curl *) Bash(which *) Bash(mkdir *) Bash(date *) Bash(cat *) Bash(base64 *) Bash(python3 *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:image
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Generate Image

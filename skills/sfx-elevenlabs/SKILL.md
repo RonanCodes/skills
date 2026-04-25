@@ -3,6 +3,10 @@ name: sfx-elevenlabs
 description: Generate sound effects from text prompts via ElevenLabs Sound Effects API. Outputs MP3 files. Use for video SFX, UI sounds, ambient backgrounds, transition effects.
 user-invocable: true
 allowed-tools: Bash(curl *) Bash(ffmpeg *) Bash(which *) Bash(mkdir *) Bash(date *) Bash(cat *) Bash(wc *) Read Write Glob Grep
+content-pipeline:
+  - pipeline:audio
+  - platform:agnostic
+  - role:primitive
 ---
 
 # SFX — ElevenLabs Sound Effects

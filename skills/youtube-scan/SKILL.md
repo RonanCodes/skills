@@ -4,6 +4,10 @@ description: Scan YouTube for videos by topic (search), channel (uploads feed), 
 category: research
 argument-hint: <topic-or-url-or-channel> [--since 24h|7d|30d] [--limit N] [--min-views N] [--rich auto|all|off] [--rich-threshold N] [--rich-keywords a,b,c] [--rich-min-duration S] [--rich-max-duration S] [--rich-channel-deny a,b,c]
 allowed-tools: Bash(yt-dlp *) Bash(curl *) Bash(which *) Bash(date *) Bash(python3 *) Bash(grep *) Bash(head *) Bash(tr *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:youtube
+  - role:scanner
 ---
 
 # YouTube Scan

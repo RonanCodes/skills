@@ -4,6 +4,10 @@ description: Draft and queue social posts via the Typefully v2 API across X, Lin
 category: marketing
 argument-hint: <text> [--thread] [--schedule <iso>] [--queue-next] [--share] [--targets <list>]
 allowed-tools: Bash(bash *) Bash(curl *) Bash(jq *) Bash(python3 *) Bash(set *) Bash(unset *) Bash(source *) Read
+content-pipeline:
+  - pipeline:distribution
+  - platform:multi
+  - role:adapter
 ---
 
 # Typefully Draft

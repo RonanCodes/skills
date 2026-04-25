@@ -4,6 +4,10 @@ description: Scan Product Hunt's daily / weekly / all-time rankings via the publ
 category: research
 argument-hint: [topic] [--since today|week|month] [--limit N] [--category <slug>]
 allowed-tools: Bash(curl *) Bash(python3 *) Read
+content-pipeline:
+  - pipeline:scan
+  - platform:agnostic
+  - role:scanner
 ---
 
 # Product Hunt Scan

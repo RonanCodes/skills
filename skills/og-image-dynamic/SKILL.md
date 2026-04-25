@@ -4,6 +4,10 @@ description: Generate per-URL Open Graph images at runtime so every shared link 
 category: quality-review
 argument-hint: [--runtime cf|vercel|node] [--route /api/og] [--template <file>] [--test]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:image
+  - platform:agnostic
+  - role:adapter
 ---
 
 # OG Image Dynamic

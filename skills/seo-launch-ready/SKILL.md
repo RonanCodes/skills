@@ -4,6 +4,10 @@ description: SEO groundwork for a freshly-shipped web app. Generates sitemap.xml
 category: quality-review
 argument-hint: [--type <webapp|article|product|video>] [--domain <url>] [--sitemap-source <file>]
 allowed-tools: Bash(*) Read Write Edit Glob Grep
+content-pipeline:
+  - pipeline:review
+  - platform:agnostic
+  - role:adapter
 ---
 
 # SEO Launch Ready

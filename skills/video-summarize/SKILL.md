@@ -4,6 +4,10 @@ description: Ingest a YouTube URL or local video via steipete's `summarize` CLI 
 category: research
 argument-hint: <youtube-url | local-video-path> [--out <dir>] [--slides-max N] [--length short|medium|long|xl|xxl] [--model <id>] [--ocr] [--skip-summary]
 allowed-tools: Bash(summarize *) Bash(which *) Bash(brew *) Bash(mkdir *) Bash(source *) Bash(unset *) Read Write
+content-pipeline:
+  - pipeline:input
+  - platform:agnostic
+  - role:primitive
 ---
 
 # Video Summarize

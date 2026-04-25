@@ -5,6 +5,10 @@ category: social
 argument-hint: <profile <slug> | contact <slug> | search <keywords> | connections>
 allowed-tools: Bash(uv *) Bash(python3 *) Read
 disable-model-invocation: true
+content-pipeline:
+  - pipeline:scan
+  - platform:linkedin
+  - role:scanner
 ---
 
 # LinkedIn Voyager (unofficial)

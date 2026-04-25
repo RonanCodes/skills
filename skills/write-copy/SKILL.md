@@ -3,6 +3,10 @@ name: write-copy
 description: Style rules for writing human-sounding copy. Apply whenever producing user-facing text (READMEs, landing pages, docs, marketing, tweets, UI microcopy, PR descriptions, release notes). The core goal is to avoid the tells that make writing look AI-generated.
 category: writing
 argument-hint: (reference skill; loaded automatically when writing copy)
+content-pipeline:
+  - pipeline:copy
+  - platform:agnostic
+  - role:rules
 ---
 
 # Write Copy
