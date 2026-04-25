@@ -110,6 +110,50 @@ A quick command:
 rg -n '—|–|\bdelve\b|\bleverage\b|\brobust\b|\bseamless\b|\btapestry\b|\blandscape\b|\bnot only\b|\bit'\''s not just\b' <file>
 ```
 
+## Voice exemplars
+
+Models to emulate, not boilerplate to copy verbatim.
+
+### Becca's launch voice: Connections Helper on LinkedIn
+
+> Are you ever stumped by Connections because you don't know a word's meaning? Then check out this app I made called Connections Helper: https://lnkd.in/eTjTe4Ev
+>
+> You can:
+> • Check the definitions of all of today's words from a range of dictionaries (Merriam-Webster, Urban Dictionary, etc)
+> • Get clues to help you solve
+> • Go back to any date for more definitions and clues
+>
+> Give it a go the next time you play Connections!
+>
+> #NYTConnections #Connections #ConnectionsHelper
+
+Why it works:
+
+- **Question hook in the first 7 words.** "Are you ever stumped by Connections" pulls in anyone who's played the puzzle. The hook *names a feeling*, not a feature.
+- **Specific pain, not generic.** "Don't know a word's meaning" beats "struggling with the puzzle". The concrete failure mode is more recognisable than the abstract one.
+- **"This app I made"** is the framing. Personal author, not corporate-voice. Reads like a friend recommending, not a brand pitching.
+- **Bullets with concrete examples.** "(Merriam-Webster, Urban Dictionary, etc)" beats "multiple dictionaries". Naming the brands does the credibility work for free.
+- **Casual imperative CTA.** "Give it a go the next time you play" reads like a friend. Compare the AI-tell version: "Try Connections Helper today and start solving smarter!". Exclamation, "today", "smarter" all signal marketer-voice.
+- **Hashtags belong on LinkedIn, not X.** LinkedIn search uses them; X readers parse them as spam. Strip when porting.
+
+The template, abstracted:
+
+```
+[question hook naming the pain in the first 7 words]
+[soft transition to "this thing I made"]
+
+You can:
+• [value prop 1, with a concrete example]
+• [value prop 2, with a concrete example]
+• [value prop 3, with a concrete example]
+
+[casual imperative CTA]
+
+[hashtags, LinkedIn only]
+```
+
+Use for `@ronancodes` build-in-public launches and any "here's my new app" post. Skip the question hook on the second-tier platforms if it doesn't translate (Bluesky tends to want a flatter opener).
+
 ## What this skill does NOT cover
 
 - Technical accuracy (that's on you)
