@@ -19,6 +19,26 @@ Everything Google and social crawlers look for on day one. Getting the basics ri
 /ro:seo-launch-ready --sitemap-source puzzles.json    # build sitemap from data
 ```
 
+## Step 0: Preflight (skip if already wired)
+
+Before scaffolding anything, check what's already there. If all five core pieces exist, **stop and report "SEO already wired"** instead of dumping the recipe. The user can pass `--force` to re-scaffold.
+
+```bash
+test -f "$REPO/public/robots.txt" && echo "✓ robots.txt"
+test -f "$REPO/public/sitemap.xml" || \
+  find "$REPO/src/routes" -iname 'sitemap*.ts' -o -iname 'sitemap*.tsx' 2>/dev/null | grep -q . || \
+  test -f "$REPO/app/sitemap.ts" && echo "✓ sitemap (static or dynamic)"
+grep -qE "rel=\"canonical\"|rel: 'canonical'" "$REPO"/src/routes/__root.* 2>/dev/null && echo "✓ canonical link"
+grep -qE "application/ld\+json" "$REPO"/src/routes/__root.* 2>/dev/null && echo "✓ JSON-LD"
+grep -qE "og:title|property: 'og:title'" "$REPO"/src/routes/__root.* 2>/dev/null && echo "✓ OG meta"
+```
+
+Report each as ✓ / ✗. If 4+ of 5 are ✓, say "SEO already wired; nothing to scaffold. Audit: [list]. Use `--force` to re-scaffold or pick the missing piece by hand." Skip the rest of the steps.
+
+If partially wired (1-3 of 5 ✓), tell the user which pieces exist and ask whether to fill the gaps or re-scaffold from scratch.
+
+A common case worth calling out: a **dynamic sitemap route** (`src/routes/sitemap[.]xml.ts` for TanStack Start, `app/sitemap.ts` for Next.js App Router) is just as valid as a static `public/sitemap.xml`. Don't flag it as missing.
+
 ## What gets wired
 
 1. **`public/robots.txt`** with sitemap URL.

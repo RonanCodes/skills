@@ -20,6 +20,22 @@ Add the three ingredients that make a web app installable: a manifest, a service
 /ro:pwa-install --offline                # add offline fallback page + richer caching
 ```
 
+## Step 0: Preflight (skip if already wired)
+
+Before scaffolding anything, check what's already there. If all four core pieces exist, **stop and report "PWA already wired"** with the file list, instead of dumping the recipe. The user can pass `--force` to re-scaffold.
+
+```bash
+test -f "$REPO/public/manifest.webmanifest" -o -f "$REPO/public/manifest.json" && echo "✓ manifest"
+test -f "$REPO/public/sw.js" -o -f "$REPO/public/service-worker.js" -o -d "$REPO/public/workbox-*" && echo "✓ service worker"
+ls "$REPO"/public/icons/icon-{192,512}.png 2>/dev/null && echo "✓ icons"
+grep -rqE "navigator\.serviceWorker\.register|workbox-window" "$REPO/src" && echo "✓ SW registration"
+grep -qE "rel=\"manifest\"|rel: 'manifest'" "$REPO"/src/routes/__root.* 2>/dev/null && echo "✓ manifest link in root"
+```
+
+Report each as ✓ / ✗. If 4+ of 5 are ✓, say "PWA already wired; nothing to scaffold. Audit: [list]. Use `--force` to re-scaffold or pick the missing piece by hand." Skip the rest of the steps.
+
+If partially wired (1-3 of 5 ✓), tell the user which pieces exist and ask whether to fill the gaps or re-scaffold from scratch.
+
 ## What gets wired
 
 1. **`public/manifest.webmanifest`** — app metadata, icons, display mode, theme colour.
