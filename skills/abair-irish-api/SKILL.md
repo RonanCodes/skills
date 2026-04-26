@@ -27,6 +27,7 @@ The whole abair.ie speech surface lives in this one kit. Replaces the older spli
 ```
 /ro:abair-irish-api tts    "<irish text>"          [--voice <id|alias>] [--output <path>] [--mp3]
 /ro:abair-irish-api tts    --file lines.txt        [--voice <id|alias>] [--out-dir <path>] [--mp3]
+/ro:abair-irish-api tts    --from-json <path>      [--output <path>] [--mp3] [--phonemes]   # offline: decode a saved synthesise response, no API call
 /ro:abair-irish-api stt    --audio <path>          [--out <path>] [--no-punctuation]
 /ro:abair-irish-api stt    --file manifest.json    [--out-dir <path>]
 /ro:abair-irish-api chat   "<message>"             # will fail; see § Chat
@@ -133,6 +134,34 @@ If `--phonemes` flag set, also print the IPA breakdown:
 
 ```bash
 [ "$SHOW_PHONEMES" = "1" ] && jq -r '.phonemes[]' /tmp/abair-resp.json | sed 's/^/  /'
+```
+
+### Offline decode (`tts --from-json`)
+
+For when you already have a saved synthesise response (downloaded from Bruno's response panel, Scalar's Try-It, or a previous `tts` run that saved JSON instead of WAV) and just want to play the audio. Skips the API call entirely.
+
+```bash
+if [ -n "$FROM_JSON" ]; then
+  [ -f "$FROM_JSON" ] || { echo "JSON not found: $FROM_JSON" >&2; exit 1; }
+  jq -e '.audioContent' "$FROM_JSON" >/dev/null 2>&1 || { echo "No audioContent field in $FROM_JSON" >&2; exit 1; }
+  OUTPUT="${OUTPUT:-${FROM_JSON%.json}.wav}"
+  jq -r '.audioContent' "$FROM_JSON" | base64 -d > "$OUTPUT"
+  echo "Wrote $OUTPUT"
+  [ "$WANT_MP3" = "1" ] && ffmpeg -y -i "$OUTPUT" -codec:a libmp3lame -qscale:a 4 "${OUTPUT%.wav}.mp3" 2>/dev/null && echo "Wrote ${OUTPUT%.wav}.mp3"
+  [ "$SHOW_PHONEMES" = "1" ] && jq -r '.phonemes[]?' "$FROM_JSON" | sed 's/^/  /'
+  open "$OUTPUT" 2>/dev/null || true
+  exit 0
+fi
+```
+
+Examples:
+
+```
+/ro:abair-irish-api tts --from-json ~/Downloads/response5.json
+# → writes ~/Downloads/response5.wav and opens it
+
+/ro:abair-irish-api tts --from-json /tmp/abair-resp.json --output /tmp/foo.wav --mp3 --phonemes
+# → also makes foo.mp3 and prints the IPA breakdown
 ```
 
 ### Batch mode (`tts --file`)
