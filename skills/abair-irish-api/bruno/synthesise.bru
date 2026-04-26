@@ -1,0 +1,29 @@
+meta {
+  name: tts — synthesise
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{synthesisBase}}/api/synthesise?input=conas%20at%C3%A1%20t%C3%BA&voice={{defaultVoice}}&normalise=true
+  body: none
+  auth: none
+}
+
+headers {
+  Origin: {{origin}}
+  Referer: {{referer}}
+  User-Agent: {{userAgent}}
+  Accept: */*
+}
+
+docs {
+  Synthesise an Irish phrase. Response shape:
+    { audioContent: "<base64 WAV>", phonemes: [...], origins: [...] }
+
+  To save the audio to a file:
+    jq -r '.audioContent' resp.json | base64 -d > out.wav && open out.wav
+
+  Voice IDs follow ga_<DIALECT>_<VOICE>_<ENGINE>. See ../openapi.yaml or
+  ../SKILL.md § tts for the full voice catalogue.
+}

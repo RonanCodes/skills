@@ -1,0 +1,308 @@
+openapi: 3.1.0
+info:
+  title: ABAIR Irish Speech API (unofficial)
+  version: "1"
+  summary: Irish-language speech stack from Trinity College Dublin — TTS, STT, and chat.
+  description: |
+    Reverse-engineered OpenAPI spec for the public abair.ie speech endpoints used
+    by the web demos at <https://abair.ie/synthesis>, <https://abair.ie/recognition>,
+    and <https://abair.ie/comhra>.
+
+    **Three services across three subdomains:**
+    - `synthesis.abair.ie` — text-to-speech (works server-side)
+    - `recognition.abair.ie` — speech-to-text (works server-side, FastAPI / Pydantic backend)
+    - `abair.ie` — chat / speech-to-speech (WAA-protected, browser-only)
+
+    All three are **undocumented by the publisher**. The TTS and STT endpoints are
+    stable enough to use in production for non-commercial work. The chat endpoint
+    is documented for reference only — Google's Web App Attestation rejects all
+    server-side requests at the edge.
+
+    For commercial use, contact ABAIR via <https://abair.ie/contact>.
+  contact:
+    name: ABAIR (Trinity College Dublin)
+    url: https://abair.ie/contact
+  license:
+    name: Non-commercial research and educational use (default)
+    url: https://abair.ie/about
+
+servers:
+  - url: https://synthesis.abair.ie
+    description: TTS — synthesis
+  - url: https://recognition.abair.ie
+    description: STT — recognition
+  - url: https://abair.ie
+    description: Chat — COMHRÁ (WAA-protected)
+
+tags:
+  - name: tts
+    description: Text-to-speech (synthesis.abair.ie)
+  - name: stt
+    description: Speech-to-text (recognition.abair.ie)
+  - name: chat
+    description: Irish chat / speech-to-speech (abair.ie/api/s2s) — WAA-protected, server-side calls fail.
+
+paths:
+  /api/synthesise:
+    get:
+      tags: [tts]
+      operationId: synthesise
+      summary: Synthesise Irish speech from text
+      servers:
+        - url: https://synthesis.abair.ie
+      description: |
+        Returns a JSON envelope containing a base64-encoded WAV (16-bit mono
+        PCM at 22050 Hz), the IPA-style phoneme breakdown for the input, and
+        the dictionary lookups that informed the pronunciation.
+
+        Voice IDs follow the pattern `ga_<DIALECT>_<VOICE>_<ENGINE>`. Three
+        dialects (Connacht / Munster / Ulster) and two engine families (Piper
+        neural, HTS statistical).
+      parameters:
+        - name: input
+          in: query
+          required: true
+          description: Irish text to synthesise. URL-encoded.
+          schema:
+            type: string
+            example: "conas atá tú"
+        - name: voice
+          in: query
+          required: true
+          description: Voice ID. Pattern is `ga_<DIALECT>_<VOICE>_<ENGINE>`.
+          schema:
+            type: string
+            enum:
+              - ga_CO_snc_piper
+              - ga_CO_snc_exthts
+              - ga_CO_pmc_exthts
+              - ga_MU_nnc_piper
+              - ga_MU_nnc_exthts
+              - ga_MU_cmg_piper
+              - ga_MU_dms_piper
+              - ga_MU_ar_fnm_piper
+              - ga_UL_anb_piper
+              - ga_UL_anb_exthts
+              - ga_UL_doc_piper
+            example: ga_CO_snc_piper
+        - name: normalise
+          in: query
+          required: false
+          description: Apply text normalisation pre-synthesis (numbers, abbreviations).
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Successful synthesis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SynthesisResult"
+              examples:
+                conas:
+                  summary: Connacht / Sibéal / Piper for "conas atá tú"
+                  value:
+                    audioContent: "UklGRiS4AABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAA..."
+                    phonemes: ["1 k o . 0 nn @ s", "0 @ . 1 t aa", "1 t uu"]
+                    origins: ["res/dictionaries/ga_CM/lexicon_conamara.txt++"]
+
+  /v3-5/transcribe:
+    post:
+      tags: [stt]
+      operationId: transcribe
+      summary: Transcribe Irish speech to text
+      servers:
+        - url: https://recognition.abair.ie
+      description: |
+        Accepts an audio file (WAV PCM, WebM/Opus, MP3) and returns the
+        transcribed text. The server applies Irish-specific capitalisation
+        and punctuation when it can; the `captpunct_applied` flag in the
+        response indicates whether that pass succeeded.
+
+        Backend evidence: 422 responses follow the FastAPI / Pydantic error
+        shape. The version segment (`/v3-5/`) suggests TCD ship multiple
+        versioned model generations.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file. WebM/Opus from MediaRecorder works directly.
+            encoding:
+              file:
+                contentType: audio/wav, audio/webm, audio/ogg, audio/mpeg
+      responses:
+        "200":
+          description: Successful transcription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscriptionResult"
+              examples:
+                cailleach:
+                  summary: Round-trip from a synthesised WAV
+                  value:
+                    text: "fáilte go hinis sligigh a chara"
+                    captpunct_applied: false
+                conas:
+                  summary: From the abair.ie web demo
+                  value:
+                    text: "Conas atá tú?"
+                    captpunct_applied: true
+        "422":
+          description: Validation error (e.g. missing file field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PydanticError"
+              examples:
+                missingFile:
+                  value:
+                    detail:
+                      - type: missing
+                        loc: [body, file]
+                        msg: Field required
+                        input: null
+
+  /api/s2s:
+    post:
+      tags: [chat]
+      operationId: chat
+      summary: Irish chat (WAA-protected, server-side calls fail)
+      servers:
+        - url: https://abair.ie
+      description: |
+        OpenAI-compatible chat endpoint for COMHRÁ — abair.ie's Irish-tutor
+        chatbot. Accepts a `messages` array (`role` + `content`) and returns
+        a single Irish-language assistant reply.
+
+        **This endpoint is protected by Google's Web App Attestation (WAA /
+        Play Integrity for Web).** The attestation token is bound to a real
+        browser session on `abair.ie`. Server-side requests are rejected at
+        the edge before reaching the application. There is no documented
+        bypass.
+
+        Documented here for completeness. For a working Irish chat loop,
+        compose this skill's `stt` + your own LLM + `tts` instead — see the
+        SKILL.md § Chat section.
+
+        The system prompt is fixed server-side: speak Irish, gently switch
+        the user back to Irish if they slip into English.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            examples:
+              greeting:
+                value:
+                  messages:
+                    - role: assistant
+                      content: "Dia dhuit! Is mise do chomhairleoir Gaeilge. Conas is féidir liom cabhrú leat inniu?"
+                    - role: user
+                      content: "hello"
+      responses:
+        "200":
+          description: |
+            Successful chat reply. Only observed when the request originates from
+            a browser session on abair.ie with a valid WAA token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReply"
+              examples:
+                gentle-irish-pivot:
+                  value:
+                    text: "Dia dhuit! Conas atá cúrsaí leat?"
+        "401":
+          description: Missing or invalid Web App Attestation token (the common server-side failure mode).
+        "403":
+          description: Attestation rejected.
+
+components:
+  schemas:
+    SynthesisResult:
+      type: object
+      required: [audioContent, phonemes, origins]
+      properties:
+        audioContent:
+          type: string
+          format: byte
+          description: Base64-encoded WAV (RIFF, 16-bit mono PCM, 22050 Hz).
+        phonemes:
+          type: array
+          items:
+            type: string
+          description: |
+            IPA-style phoneme breakdown per word. Numeric prefixes are stress
+            markers (1=primary, 0=unstressed). `.` separates syllables.
+          example: ["1 k o . 0 nn @ s"]
+        origins:
+          type: array
+          items:
+            type: string
+          description: Dictionary lookup paths used to resolve each word's pronunciation.
+          example: ["res/dictionaries/ga_CM/lexicon_conamara.txt++"]
+    TranscriptionResult:
+      type: object
+      required: [text, captpunct_applied]
+      properties:
+        text:
+          type: string
+          description: Transcribed Irish text. May or may not be punctuated/capitalised; see captpunct_applied.
+          example: "fáilte go hinis sligigh a chara"
+        captpunct_applied:
+          type: boolean
+          description: True if the server's capitalisation + punctuation pass ran successfully.
+          example: false
+    PydanticError:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              loc:
+                type: array
+                items:
+                  type: string
+              msg:
+                type: string
+              input:
+                nullable: true
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          description: OpenAI-compatible message history. Roles are `user` and `assistant`.
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+    ChatReply:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: Assistant reply in Irish.
+          example: "Dia dhuit! Conas atá cúrsaí leat?"

@@ -1,0 +1,41 @@
+meta {
+  name: chat — COMHRÁ (expected to fail)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{chatBase}}/api/s2s
+  body: json
+  auth: none
+}
+
+headers {
+  Origin: {{origin}}
+  Referer: {{chatReferer}}
+  User-Agent: {{userAgent}}
+  Accept: */*
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "messages": [
+      { "role": "assistant", "content": "Dia dhuit! Is mise do chomhairleoir Gaeilge. Conas is féidir liom cabhrú leat inniu?" },
+      { "role": "user", "content": "hello" }
+    ]
+  }
+}
+
+docs {
+  COMHRÁ (Irish chat) endpoint. **This request is expected to fail (401/403)**
+  because the endpoint is protected by Google's Web App Attestation. The token
+  is bound to a real browser session on abair.ie and cannot be reproduced from
+  Bruno or curl.
+
+  Documented here for completeness. Response shape when it works (browser only):
+    { "text": "Dia dhuit! Conas atá cúrsaí leat?" }
+
+  For a working Irish chat loop server-side: use transcribe.bru for STT, your
+  own LLM for the reply, and synthesise.bru for TTS. See ../SKILL.md § Chat.
+}

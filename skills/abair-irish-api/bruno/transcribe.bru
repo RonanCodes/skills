@@ -1,11 +1,11 @@
 meta {
-  name: transcribe
+  name: stt — transcribe
   type: http
-  seq: 1
+  seq: 2
 }
 
 post {
-  url: {{baseUrl}}/v3-5/transcribe
+  url: {{recognitionBase}}/v3-5/transcribe
   body: multipartForm
   auth: none
 }
@@ -23,8 +23,8 @@ body:multipart-form {
 
 docs {
   Transcribe an Irish-language audio file. Drop a WAV / WebM / MP3 sample into
-  ./samples/ and update the file: line above. Round-trip test: synthesize via
-  /ro:tts-abair, save the WAV to ./samples/, then run this request.
+  ./samples/ and update the file: line above. Round-trip test: synthesise via
+  the synthesise.bru request, save the WAV to ./samples/, then run this request.
 
   Expected response shape:
     { "text": "...", "captpunct_applied": true|false }
