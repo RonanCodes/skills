@@ -2,7 +2,6 @@
 name: commit
 description: Create git commits with emoji conventional commit format. Handles staging, message formatting, and timestamp rules. Use when committing changes.
 category: development
-disable-model-invocation: true
 ---
 
 # Commit

@@ -3,7 +3,6 @@ name: create-skill
 description: Create a new Claude Code skill with proper SKILL.md structure, frontmatter, and best practices. Use when user wants to create, write, build, or add a new skill.
 category: project-setup
 argument-hint: [skill-name]
-disable-model-invocation: true
 ---
 
 # Create a Skill
@@ -14,7 +13,6 @@ Guide the user through creating a well-structured Claude Code skill.
 
 1. **Gather requirements** — ask the user:
    - What task or capability does the skill cover?
-   - Should it be user-invoked only (`/skill-name`) or also auto-triggered by Claude?
    - Does it need shell scripts, templates, or reference files?
    - Where should it live? (project `.claude/skills/`, personal `~/.claude/skills/`)
 
@@ -40,7 +38,6 @@ skill-name/
 name: skill-name
 description: What the skill does in one sentence. Use when [specific trigger phrases and contexts].
 argument-hint: [expected-arguments]        # optional
-disable-model-invocation: true             # set true for user-only actions
 user-invocable: false                      # set false for background knowledge only
 allowed-tools: Bash(git *) Read            # optional, pre-approve specific tools
 context: fork                              # optional, run in isolated subagent
@@ -85,11 +82,14 @@ Bad: `"Helps with YouTube videos."`
 | `name` | Always. Lowercase, hyphens, max 64 chars. |
 | `description` | Always. This is how Claude finds the skill. |
 | `argument-hint` | When the skill takes arguments. Shows in autocomplete. |
-| `disable-model-invocation` | `true` for actions with side effects (deploy, commit, send). |
 | `user-invocable` | `false` for background knowledge Claude should auto-apply. |
 | `allowed-tools` | Pre-approve tools to avoid permission prompts. |
 | `context` | `fork` to run in isolated subagent (no conversation history). |
 | `agent` | Which subagent to use with `context: fork`. |
+
+### Do NOT set `disable-model-invocation`
+
+Skip this field entirely. It exists to prevent the model from auto-invoking a skill, but in practice that just makes the model fall back to bash one-liners and miss the skill's value. If you don't trust a skill's auto-invocation, the answer is to **make the description more precise** (clearer triggers, sharper "use when" phrasing), not to gate it. For genuinely destructive operations, rely on the harness permission system + `allowed-tools` scoping, not on blocking model invocation.
 
 ## Dynamic Context
 
@@ -188,6 +188,6 @@ Before saving, verify:
 - [ ] SKILL.md is focused and under 100 lines
 - [ ] No time-sensitive info that will go stale
 - [ ] Concrete examples included
-- [ ] `disable-model-invocation` set correctly
+- [ ] `disable-model-invocation` is NOT set (never use this flag)
 - [ ] Supporting files referenced from SKILL.md if they exist
 - [ ] If the skill needs secrets: the right env pattern is used (repo-root `.env` for standalone, `${CLAUDE_PLUGIN_DATA}/.env` for plugin) — see "Environment Variables" section

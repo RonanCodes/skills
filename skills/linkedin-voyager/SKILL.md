@@ -4,7 +4,6 @@ description: Read LinkedIn profile data (bio, headline, experience, education, s
 category: social
 argument-hint: <profile <slug> | contact <slug> | search <keywords> | connections>
 allowed-tools: Bash(uv *) Bash(python3 *) Read
-disable-model-invocation: true
 content-pipeline:
   - pipeline:scan
   - platform:linkedin
@@ -21,7 +20,7 @@ This skill uses an **undocumented internal API** and authenticates with your **s
 
 - Prefer `/ro:linkedin` (official API) for anything it covers.
 - Keep request rate low. One profile fetch per minute is fine; a scripted crawl is not.
-- This skill is `disable-model-invocation: true` — Claude will never call it without your typed `/ro:linkedin-voyager ...`.
+- The skill is model-invocable, but treat it as a deliberate operation — don't auto-fire it on tangential LinkedIn-related questions. Prefer `/ro:linkedin` (official API) when possible.
 
 ## Usage
 

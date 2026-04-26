@@ -3,7 +3,6 @@ name: ralph
 description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Picks the highest priority incomplete story, implements it, validates, commits, and updates progress. Supports named PRDs (e.g. one per project phase) via --prd <name>. Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
 category: development
 argument-hint: [--prd <name>] [--plan-only | --single | --all]
-disable-model-invocation: true
 allowed-tools: Bash(git *) Read Write Edit Glob Grep
 ---
 
