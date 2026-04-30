@@ -392,6 +392,8 @@ Plan one engineer-week and a week of soft migration window. Not free, not catast
 ## See also
 
 - `/ro:better-auth` for the inverse case (own the user table, EU mandate, fully custom flows)
+- `/ro:nango` when wiring third-party integrations (Nango sessions are scoped to your authenticated end-user)
+- `/ro:stripe` when wiring payments (Stripe customers are linked to WorkOS user IDs)
 - `/ro:new-tanstack-app --with-auth=workos` to scaffold a new app with WorkOS pre-wired
 - `/ro:cf-ship` to ship after wiring
 - WorkOS docs: https://workos.com/docs/user-management, use context7 (`/workos/authkit-session`) for current syntax
