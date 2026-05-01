@@ -1,10 +1,29 @@
 ---
 name: workos
-description: Wire WorkOS AuthKit into a TanStack Start app on Cloudflare Workers as the alt-at-scale auth choice (default is /ro:clerk). Install, env config, sign-in + callback routes, sealed-session cookie, server auth helper, Drizzle shadow user table, organisations + Admin Portal hooks, optional SAML SSO. Use when 100K+ MAU is plausible within 12 months, when a non-engineer partner needs the WorkOS Admin Portal for user-management visibility, or when SSO via per-connection SAML is a near-term need. For generic "add auth" or small SaaS, use /ro:clerk instead.
-category: auth
+description: ARCHIVED 2026-05-01. WorkOS AuthKit wiring for TanStack Start on Cloudflare Workers. Pulled from active skills because the user's product portfolio is small SaaS and won't hit 10K MAU. Restore when (a) MAU genuinely approaches 100K, (b) a non-engineer partner needs the WorkOS hosted Admin Portal sidecar, or (c) per-connection SAML SSO is a near-term selling point. To restore, move this directory back to `skills/workos/` and `git push` (the pre-push hook will bump the plugin version). Default auth is now /ro:clerk; alt for own-the-table is /ro:better-auth.
+category: auth-archived
 argument-hint: [install | add-organizations | add-sso | add-webhook | open-portal] [--social github,google]
+archived: true
+archived-date: 2026-05-01
+archived-reason: "Demoted from default in favour of /ro:clerk. User's product portfolio is small SaaS, speed-to-market priority, won't hit 10K MAU. WorkOS's 1M-MAU-free advantage and Admin Portal sidecar are valuable but irrelevant at this scale."
+restore-when: "(a) MAU growth past 10K becomes a real near-term plan, OR (b) a non-engineer partner explicitly asks for hosted user-management visibility, OR (c) enterprise SAML SSO is a near-term sale."
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(openssl *) Bash(git *) Bash(open *) Read Write Edit
 ---
+
+> **🗄️ ARCHIVED 2026-05-01**
+>
+> This skill is intentionally outside `skills/` so the plugin loader skips it. The body below is unchanged from the active version, ready to use as-is when restored.
+>
+> **Why archived:** The auth canon flipped from WorkOS-default to Clerk-default for small SaaS speed-to-market. WorkOS's headline advantages (1M MAU free tier, hosted Admin Portal sidecar) are real but don't apply to products that won't pass 10K MAU.
+>
+> **To restore:** `git mv archive/skills/workos skills/workos && git push` from `~/Dev/ronan-skills/`. The pre-push hook will bump the plugin version automatically.
+>
+> **Restore triggers** (any one is sufficient):
+> 1. MAU expected to cross 10K within 12 months (Clerk's per-MAU cost starts ramping there)
+> 2. A non-engineer partner explicitly needs hosted user-management visibility without full Clerk dashboard access
+> 3. A customer or partnership pipeline is asking for enterprise SAML SSO
+>
+> **See also:** `/ro:clerk` (current default), `/ro:better-auth` (alt for owns-the-table / EU mandate). Comparisons: `llm-wiki-research/wiki/comparisons/auth-three-way-deep-dive.md`.
 
 # WorkOS
 
