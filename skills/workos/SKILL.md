@@ -1,6 +1,6 @@
 ---
 name: workos
-description: Wire WorkOS AuthKit into a TanStack Start app on Cloudflare Workers, install, env config, sign-in + callback routes, sealed-session cookie, server auth helper, Drizzle shadow user table, organisations + Admin Portal hooks, optional SAML SSO. Use when user wants to add WorkOS auth, AuthKit, hosted login, organisations, B2B login, SSO, or social login to a TanStack Start + Drizzle + D1 app and does not need to own the user table.
+description: Wire WorkOS AuthKit into a TanStack Start app on Cloudflare Workers as the alt-at-scale auth choice (default is /ro:clerk). Install, env config, sign-in + callback routes, sealed-session cookie, server auth helper, Drizzle shadow user table, organisations + Admin Portal hooks, optional SAML SSO. Use when 100K+ MAU is plausible within 12 months, when a non-engineer partner needs the WorkOS Admin Portal for user-management visibility, or when SSO via per-connection SAML is a near-term need. For generic "add auth" or small SaaS, use /ro:clerk instead.
 category: auth
 argument-hint: [install | add-organizations | add-sso | add-webhook | open-portal] [--social github,google]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(openssl *) Bash(git *) Bash(open *) Read Write Edit
@@ -10,7 +10,13 @@ allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(openssl *) Bash(g
 
 Wire [WorkOS AuthKit](https://workos.com/docs/user-management) into a TanStack Start + Drizzle + D1 app on Cloudflare Workers. Hosted sign-in UI, sealed-session cookie, organisations + Admin Portal for non-engineer partners, SSO when an enterprise merchant asks.
 
-This is the canonical auth pick for the user's stack as of 2026-04-30. For the inverse case (own the user table, EU residency mandate, fully custom flows), use `/ro:better-auth` instead. Comparison: `llm-wiki-research/wiki/comparisons/auth-clerk-vs-better-auth.md`.
+This is the **alt-at-scale** auth pick for the user's stack as of 2026-05-01. The default for small SaaS is `/ro:clerk` (broader hosted-component catalogue, faster first sign-in, free to 10K MAU). Reach for WorkOS when one of these triggers fires:
+
+1. MAU is expected to cross 100K within 12 months (Clerk's per-MAU cost ramps; WorkOS is free to 1M MAU).
+2. A non-engineer partner needs the hosted Admin Portal for user-management visibility (Clerk's dashboard works but WorkOS's Admin Portal is built around handing access to a partner without giving them the full dashboard).
+3. Enterprise SSO via per-connection SAML is on the near-term roadmap (WorkOS owns this category; Clerk supports it but at higher per-connection cost).
+
+For the inverse case (own the user table, EU residency mandate, fully custom flows), use `/ro:better-auth` instead. Comparisons: `llm-wiki-research/wiki/comparisons/auth-clerk-vs-better-auth.md` and `llm-wiki-research/wiki/comparisons/auth-three-way-deep-dive.md`.
 
 ## Usage
 
@@ -391,10 +397,11 @@ Plan one engineer-week and a week of soft migration window. Not free, not catast
 
 ## See also
 
+- `/ro:clerk` is the **now-default for small-SaaS speed-to-market** (broader hosted components, free to 10K MAU). Start there unless one of the three WorkOS triggers above applies.
 - `/ro:better-auth` for the inverse case (own the user table, EU mandate, fully custom flows)
 - `/ro:nango` when wiring third-party integrations (Nango sessions are scoped to your authenticated end-user)
 - `/ro:stripe` when wiring payments (Stripe customers are linked to WorkOS user IDs)
-- `/ro:new-tanstack-app --with-auth=workos` to scaffold a new app with WorkOS pre-wired
+- `/ro:new-tanstack-app --auth=workos` to scaffold a new app with WorkOS pre-wired (default is `--auth=clerk`)
 - `/ro:cf-ship` to ship after wiring
 - WorkOS docs: https://workos.com/docs/user-management, use context7 (`/workos/authkit-session`) for current syntax
-- Comparison page: `llm-wiki-research/wiki/comparisons/auth-clerk-vs-better-auth.md`
+- Comparison pages: `llm-wiki-research/wiki/comparisons/auth-clerk-vs-better-auth.md`, `auth-three-way-deep-dive.md`

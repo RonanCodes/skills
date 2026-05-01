@@ -114,14 +114,16 @@ Port one surface at a time. After each, run the test suite against it.
 
 ### 7. Port auth
 
-Default target is **WorkOS AuthKit** (vendored, hosted Admin Portal, 1M MAU free, B2B SSO ready). Flip to **Better Auth** only when the target app must own the `users` table, has an EU residency mandate, or needs custom auth flows AuthKit cannot bend to.
+Default target is **Clerk** (hosted UI components, free to 10K MAU, fastest first sign-in). Flip to **WorkOS AuthKit** when 100K+ MAU is plausible, a non-engineer partner needs the Admin Portal, or near-term SAML SSO is on the roadmap. Flip to **Better Auth** when the target app must own the `users` table, has an EU residency mandate, needs custom auth flows neither vendor can bend to, or wants zero vendor lock-in.
 
-- **Clerk / NextAuth / Auth0** → **WorkOS AuthKit** (default). Users export from the source vendor and re-import via WorkOS's User Management API or admin CSV import. Session tokens do NOT transfer; users get signed out on cutover, plan comms.
-- **Clerk / NextAuth / Auth0** → **Better Auth** (alt path). Better Auth has an import script. Same session-cutover caveat applies.
+- **NextAuth / Auth0 / WorkOS** → **Clerk** (default). Users export from the source vendor and re-import via Clerk's User Backup API or dashboard CSV import. Session tokens do NOT transfer; users get signed out on cutover, plan comms.
+- **NextAuth / Auth0 / Clerk** → **WorkOS AuthKit** (alt-at-scale). Re-import via WorkOS's User Management API or admin CSV. Same session-cutover caveat.
+- **Clerk / NextAuth / Auth0 / WorkOS** → **Better Auth** (alt-optionality). Better Auth has an import script. Password hashes do NOT transfer between any vendored providers; reset emails on cutover.
+- **Already Clerk** — wire `<ClerkProvider />` at app root, copy `authenticateRequest()` calls into route loaders, update Clerk dashboard's allowed origins for the new domain.
+- **Already WorkOS** — copy server config + `withAuth` route guards, update redirect URIs for the new domain.
 - **Already Better Auth** — copy `lib/auth.ts`, re-mount at `src/routes/api/auth/$.ts`.
-- **Already WorkOS**: copy server config + `withAuth` route guards, update redirect URIs for the new domain.
 
-Delegate to `/ro:workos` (default) or `/ro:better-auth` (alt). If neither exists, inline the wiring.
+Delegate to `/ro:clerk` (default), `/ro:workos` (alt-at-scale), or `/ro:better-auth` (alt-optionality). If neither exists, inline the wiring.
 
 ### 8. Data migration (only if `--keep-data`)
 

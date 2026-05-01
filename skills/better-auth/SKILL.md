@@ -1,6 +1,6 @@
 ---
 name: better-auth
-description: Wire Better Auth into a TanStack Start app as the alt-path auth provider when you must own the user table, need EU data residency, or have fully custom auth flows. Default auth is now /ro:workos. Use this skill when user explicitly wants Better Auth, owns-the-table semantics, EU-mandated user storage, or custom auth flows the vendored option cannot satisfy.
+description: Wire Better Auth into a TanStack Start app as the optionality alt-path auth provider when you must own the user table, need EU data residency, or have fully custom auth flows. Default auth is /ro:clerk; alt-at-scale is /ro:workos. Use this skill when user explicitly wants Better Auth, owns-the-table semantics, EU-mandated user storage, or custom auth flows the vendored options cannot satisfy.
 category: auth
 argument-hint: [install | add-provider <github|google> | add-roles | generate-schema] [--email]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(openssl *) Bash(git *) Read Write Edit
@@ -10,12 +10,13 @@ allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(openssl *) Bash(g
 
 Wire [Better Auth](https://www.better-auth.com) into a TanStack Start + Drizzle + D1 app. Code-generates schema, server config, route handler, client, and optional OAuth providers and role helpers.
 
-> **When to use this vs `/ro:workos`.** Default auth is `/ro:workos` (vendored AuthKit, hosted Admin Portal, 1M MAU free, B2B SSO ready). Reach for Better Auth when one of these is true:
+> **When to use this vs `/ro:clerk` / `/ro:workos`.** Default auth is `/ro:clerk` (hosted UI components, free to 10K MAU, fastest first sign-in). Alt-at-scale is `/ro:workos` (1M MAU free, hosted Admin Portal, B2B SSO ready). Reach for Better Auth when one of these is true:
 > 1. You need to own the `users` table for native joins, FKs, and DB-enforced row-level security against merchant-scoped data.
-> 2. EU data-residency mandate that vendored AuthKit cannot satisfy on its standard plan.
-> 3. Fully custom auth flows (unusual onboarding, custom session shape, exotic providers) that AuthKit does not bend to.
+> 2. EU data-residency mandate that neither Clerk nor vendored AuthKit can satisfy on their standard plans.
+> 3. Fully custom auth flows (unusual onboarding, custom session shape, exotic providers) that Clerk and AuthKit do not bend to.
+> 4. Zero vendor lock-in is a hard preference. The Auth.js consolidation under the Better Auth team in 2026 makes this the safest principled-OSS pick available.
 >
-> If none apply, prefer `/ro:workos`.
+> If none apply, prefer `/ro:clerk`.
 
 ## Usage
 
@@ -253,7 +254,9 @@ export const auth = betterAuth({
 
 ## See also
 
-- `/ro:workos` for the inverse case (vendored auth, hosted Admin Portal, B2B SSO ready, when you do not need to own the user table)
-- `/ro:new-tanstack-app --with-auth` — scaffolds a new app with better-auth pre-wired
-- `/ro:cf-ship` — ship after wiring
-- Better Auth docs: https://www.better-auth.com — use context7 for current syntax
+- `/ro:clerk` is the **default for small SaaS** (hosted UI components, free to 10K MAU, fastest first sign-in). Start there unless one of the four Better-Auth triggers above applies.
+- `/ro:workos` for the alt-at-scale case (vendored auth, hosted Admin Portal, B2B SSO ready, 1M MAU free, when you do not need to own the user table)
+- `/ro:new-tanstack-app --auth=better-auth` to scaffold a new app with Better Auth pre-wired (default is `--auth=clerk`)
+- `/ro:cf-ship` to ship after wiring
+- Better Auth docs: https://www.better-auth.com, use context7 for current syntax
+- Comparison pages: `llm-wiki-research/wiki/comparisons/auth-clerk-vs-better-auth.md`, `auth-three-way-deep-dive.md`

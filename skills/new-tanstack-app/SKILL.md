@@ -1,6 +1,6 @@
 ---
 name: new-tanstack-app
-description: Orchestrate scaffolding a new TanStack Start app on the canonical stack (TanStack Start + Drizzle + Cloudflare Workers + shadcn/ui). Dispatches to sub-skills for DB (D1 / Neon), auth (WorkOS AuthKit by default; Better Auth as alt for owns-the-table / EU-mandate / custom-flows), observability (PostHog, Sentry, UptimeRobot), DNS, ship; plus optional agentic runtime (XState + Vercel AI SDK, LangGraph Phase-2 POA) and Knock notifications. Use when user wants to start, create, scaffold, bootstrap, or kick off a new TanStack Start project / small app / side project.
+description: Orchestrate scaffolding a new TanStack Start app on the canonical stack (TanStack Start + Drizzle + Cloudflare Workers + shadcn/ui). Dispatches to sub-skills for DB (D1 / Neon), auth (Clerk by default for small SaaS; WorkOS AuthKit as alt-at-scale for B2B 100K+ MAU; Better Auth as alt for owns-the-table / EU-mandate / custom-flows), observability (PostHog, Sentry, UptimeRobot), DNS, ship; plus optional agentic runtime (XState + Vercel AI SDK, LangGraph Phase-2 POA) and Knock notifications. Use when user wants to start, create, scaffold, bootstrap, or kick off a new TanStack Start project / small app / side project.
 category: project-setup
 argument-hint: <app-name> [--db d1|neon] [--auth] [--posthog] [--sentry] [--uptime] [--agent xstate|langgraph] [--ai-sdk] [--knock] [--domain <host>] [--skip-deploy] [--skip-ci] [--interactive]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(corepack *) Bash(mkdir *) Bash(cd *) Bash(cp *) Read Write Edit
@@ -16,7 +16,7 @@ Scaffold a new TanStack Start app, then dispatch to sub-skills for the pieces th
 /ro:new-tanstack-app my-app                              # baseline: D1, no auth, no observability, deploy
 /ro:new-tanstack-app my-app --interactive                # asks what to wire (uses AskUserQuestion)
 /ro:new-tanstack-app my-app --db neon                    # Postgres via Neon instead of D1
-/ro:new-tanstack-app my-app --auth                       # + WorkOS AuthKit (default); --auth=better-auth for the owns-the-table alt
+/ro:new-tanstack-app my-app --auth                       # + Clerk (default); --auth=workos for B2B-at-scale; --auth=better-auth for the owns-the-table alt
 /ro:new-tanstack-app my-app --posthog --sentry --uptime  # + full observability
 /ro:new-tanstack-app my-app --agent xstate --ai-sdk      # + XState decision machine + Vercel AI SDK (Anthropic/OpenAI/Gemini)
 /ro:new-tanstack-app my-app --knock                      # + Knock (multi-channel notifications: Slack + email + in-app)
@@ -38,7 +38,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
   3. UI: tailwind + shadcn + lucide                       (inline)
   4. Testing + API docs                → /ro:testing-stack install
   5. Code hygiene: prettier + eslint + husky + commitlint (inline)
-  6. --auth              → /ro:workos install (default); --auth=better-auth → /ro:better-auth install (owns-the-table / EU-mandate / custom-flows)
+  6. --auth              → /ro:clerk install (default); --auth=workos → /ro:workos install (B2B at 100K+ MAU); --auth=better-auth → /ro:better-auth install (owns-the-table / EU-mandate / custom-flows)
   7. --ai-sdk            → install `ai` + `@ai-sdk/anthropic` + `@ai-sdk/openai` + `@ai-sdk/google`; scaffold `lib/models.ts`
   8. --agent xstate      → install `xstate` + `@xstate/react`; scaffold a reference `machines/exampleMachine.ts` + actor using AI SDK
   8b. --agent langgraph  → Phase-2 POA (not yet auto-scaffolded) — prints migration POA instead
@@ -74,7 +74,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
 Runs an `AskUserQuestion` preamble to collect:
 
 1. **Database** — D1 (SQLite, default) or Neon (Postgres)?
-2. **Auth**: WorkOS AuthKit (default), Better Auth (for owns-the-table / EU mandate / custom flows), or none?
+2. **Auth**: Clerk (default for small SaaS, hosted UI components, free to 10K MAU), WorkOS (alt-at-scale: 100K+ MAU plausible, partner needs Admin Portal, near-term SAML SSO), Better Auth (alt for owns-the-table / EU mandate / custom flows), or none?
 3. **Agent runtime** — None / XState (MVP: prescriptive decision machine) / LangGraph POA (Phase 2 migration notes only)?
 4. **LLM provider abstraction** — Install Vercel AI SDK + provider packs?
 5. **Notifications** — Knock (multi-channel) / Resend-only / none?
@@ -164,16 +164,27 @@ After scaffolding, run `pnpm format:write` once to set the baseline so subsequen
 
 Reference: `connections-helper/docs/adr/0002-github-branch-protection-squash-only-merges.md`.
 
-### 7. `--auth` → `/ro:workos install` (default) or `/ro:better-auth install` (alt)
+### 7. `--auth` → `/ro:clerk install` (default), `/ro:workos install` (alt-at-scale), or `/ro:better-auth install` (alt-optionality)
 
-Default: delegate to `/ro:workos install`. WorkOS AuthKit (1M MAU free, hosted Admin Portal, B2B SSO ready) is the canonical pick.
+Default: delegate to `/ro:clerk install`. Clerk (hosted UI components, free to 10K MAU, fastest first sign-in) is the canonical pick for small SaaS where speed-to-market matters.
+
+Flip to `/ro:workos install` when any of these is true:
+- MAU is expected to cross 100K within 12 months (Clerk's per-MAU cost ramps; WorkOS is free to 1M MAU).
+- A non-engineer partner needs the WorkOS Admin Portal for user-management visibility.
+- Enterprise SSO via per-connection SAML is on the near-term roadmap.
+
+Trigger via `--auth=workos` flag, or via the interactive picker (Question 2) above.
 
 Flip to `/ro:better-auth install` when any of these is true:
 - User must own the `users` table for native joins / FKs / row-level security against domain data.
-- EU data-residency mandate that vendored AuthKit cannot satisfy on its standard plan.
+- EU data-residency mandate that neither Clerk nor vendored AuthKit can satisfy on their standard plans.
 - Fully custom auth flows (unusual onboarding, custom session shape, exotic providers).
+- Zero vendor lock-in is a hard preference (Auth.js consolidation under the Better Auth team in 2026 makes this the safest principled-OSS pick).
 
 Trigger via `--auth=better-auth` flag, or via the interactive picker (Question 2) above.
+
+Afterwards (Clerk path):
+- Remind user: `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_WEBHOOK_SECRET` live in `.dev.vars` + `wrangler secret put`, NOT in `~/.claude/.env`. The publishable key ships to the browser bundle (safe).
 
 Afterwards (WorkOS path):
 - Remind user: `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_COOKIE_PASSWORD`, `WORKOS_REDIRECT_URI` live in `.dev.vars` + `wrangler secret put`, NOT in `~/.claude/.env`.
@@ -455,6 +466,6 @@ Print the following after everything runs:
 
 - `/ro:migrate-to-tanstack` — port an existing app to this stack (the migration sibling)
 - `/ro:neon` — Postgres wiring
-- `/ro:workos` (default auth), `/ro:better-auth` (alt for owns-the-table cases), `/ro:posthog`, `/ro:sentry`, `/ro:uptimerobot`, `/ro:cloudflare-dns`
+- `/ro:clerk` (default auth), `/ro:workos` (alt-at-scale auth), `/ro:better-auth` (alt for owns-the-table cases), `/ro:posthog`, `/ro:sentry`, `/ro:uptimerobot`, `/ro:cloudflare-dns`
 - `/ro:cf-ship` — the deploy pipeline
 - `/ro:commit` — emoji conventional commits

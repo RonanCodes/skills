@@ -472,6 +472,6 @@ deploy:
 ## See also
 
 - `/ro:new-tanstack-app` — orchestrator that invokes this skill
-- `/ro:workos install` (default) or `/ro:better-auth install` (alt): add auth endpoints (and their Bruno tests)
+- `/ro:clerk install` (default), `/ro:workos install` (alt-at-scale), or `/ro:better-auth install` (alt-optionality): add auth endpoints (and their Bruno tests)
 - `/ro:cf-ship` — deploy to Cloudflare Workers
 - `/ro:gh-ship` — push through GitHub PR pipeline
