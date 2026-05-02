@@ -19,16 +19,31 @@ Sister skills: `/generate-spec` (produces the input spec) and `/compare-specs` (
 ## Usage
 
 ```
+# Spec lives next to the code
 /compare-codebase-to-spec docs/specs/spec-v1-fresh-2026-05-02.md
+
+# Spec is a vault-genesis spec, code is in another repo
+/compare-codebase-to-spec --repo ~/Dev/myapp vaults/llm-wiki-side-projects/wiki/specs/myapp-spec-v1-fresh-2026-05-02.md
+
+# Explicit repo override
 /compare-codebase-to-spec --repo ~/Dev/other-project docs/specs/spec.md
+
+# Render PDF alongside
 /compare-codebase-to-spec --pdf docs/specs/spec.md
 ```
 
-Default repo is cwd. The spec's `repo` frontmatter field is treated as the source of truth: if it disagrees with `--repo`, surface the mismatch but proceed using `--repo`.
+The spec path can be in a repo's `docs/specs/` or in a vault's `wiki/specs/`. Repo resolution order:
+
+1. `--repo <path>` flag if passed.
+2. Spec frontmatter `repo` field if non-empty.
+3. cwd if it's a git repo.
+4. Otherwise abort: ask the user where the code lives.
+
+If `--repo` and the spec's frontmatter `repo` disagree, surface the mismatch but proceed using `--repo`. A vault-genesis spec with empty `repo` frontmatter is the expected case for the first audit after graduation.
 
 ## Output
 
-Path: `<repo>/docs/specs/audit-v<N>-YYYY-MM-DD.md` where `v<N>` is the version of the spec being audited.
+Path: `<repo>/docs/specs/audit-v<N>-YYYY-MM-DD.md` where `v<N>` is the version of the spec being audited. The audit always lives in the repo (next to the code), even when the spec being audited is in a vault. If the spec is vault-genesis, also add a cross-vault link from the vault spec to the new audit.
 
 If `--pdf`, render via `/generate pdf` and print both paths.
 

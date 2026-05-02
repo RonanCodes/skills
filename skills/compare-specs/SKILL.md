@@ -12,7 +12,11 @@ content-pipeline:
 
 # Compare Specs
 
-Reads two spec files (typically `docs/specs/spec-v1-*.md` and `spec-v2-*.md`), walks the 10 sections of the spec template, and emits a single comparison report.
+Reads two spec files, walks the 10 sections of the spec template, and emits a single comparison report. Common pairings:
+
+- `spec-v1-*.md` vs `spec-v2-*.md` in the same `docs/specs/` directory (drift between phases of the same project).
+- A vault-genesis spec (`vaults/.../wiki/specs/<name>-spec-v1-fresh-*.md`) vs the corresponding from-codebase spec in the repo (`<repo>/docs/specs/spec-v2-from-codebase-*.md`). This is the headline "what we said vs what we built" diff.
+- Two competing drafts of v1 before either is accepted.
 
 Sister skills: `/generate-spec` (produces the inputs) and `/compare-codebase-to-spec` (audits drift between spec and code).
 
@@ -27,9 +31,13 @@ Both arguments are paths. By convention A is older / planned, B is newer / actua
 
 ## Output
 
-Path: `<repo>/docs/specs/diff-v<A>-vs-v<B>-YYYY-MM-DD.md`
+Versions are read from each spec's frontmatter.
 
-Versions are read from each spec's frontmatter. If the two specs cover different repos, abort with an error: comparing across projects is meaningless.
+Path rules:
+- If both specs live in the same `docs/specs/` directory: write the report next to them as `<repo>/docs/specs/diff-v<A>-vs-v<B>-YYYY-MM-DD.md`.
+- If one spec is in a vault and the other is in a repo (lifecycle comparison): write to the repo's `docs/specs/diff-vault-genesis-vs-v<B>-YYYY-MM-DD.md` and add a cross-vault link from the vault spec.
+- If both specs live in vault `wiki/specs/` directories: write to the same vault as `wiki/specs/diff-<A>-vs-<B>-YYYY-MM-DD.md`.
+- If the two specs cover different non-empty `repo` fields, abort: comparing across projects is meaningless.
 
 If `--pdf`, render via `/generate pdf` and print both paths.
 
@@ -38,8 +46,9 @@ If `--pdf`, render via `/generate pdf` and print both paths.
 ### Step 1 — Validate inputs
 
 Read frontmatter of both files. Confirm:
-- Both have `title`, `version`, `mode`, `repo` fields.
-- `repo` matches between the two. If not, stop and surface the mismatch.
+- Both have `title`, `version`, `mode` fields. `repo` may be empty on a vault-genesis spec; that is valid.
+- If both have a non-empty `repo`, they must match. If they disagree, stop and surface the mismatch.
+- If only one has `repo` populated, that is the lifecycle case (genesis vault spec vs post-graduation repo spec). This is a meaningful comparison: it shows what we said we'd build vs what we built. Annotate the report header with this.
 - A and B are not the same file.
 
 ### Step 2 — Section walk

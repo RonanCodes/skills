@@ -1,6 +1,6 @@
 ---
 name: generate-spec
-description: Generate a spec-driven-development spec for a feature or whole product. Two modes — fresh (interview-driven greenfield) or from-codebase (analyses an existing repo). Outputs versioned markdown to docs/specs/ with EARS-format requirements, mermaid diagrams, and inline ADRs. Optional PDF render and vault mirror. Use when starting a new project, capturing the current state of an existing codebase, or before a major phase of work.
+description: Generate a spec-driven-development spec for a feature or whole product. Two modes, fresh (interview-driven greenfield, vault-first when no repo exists) or from-codebase (analyses an existing repo). Outputs versioned markdown with EARS-format requirements, mermaid diagrams, and inline ADRs. Specs are born in a vault and graduate into a repo's docs/specs/ once implementation starts. Optional PDF render. Use when starting a new project, capturing the current state of an existing codebase, or before a major phase of work.
 category: development
 argument-hint: [--mode fresh|from-codebase] [--pdf] [--vault <name>] [--repo <path>] <feature-or-project-name>
 allowed-tools: Read Write Edit Glob Grep Bash
@@ -12,31 +12,60 @@ content-pipeline:
 
 # Generate Spec
 
-Produces a single `spec.md` per generation, versioned by date and mode, in the target codebase's `docs/specs/`. The spec is the executable contract: stories use EARS format, decisions are inline ADRs, and the plan slots straight into `/ralph`.
+Produces a single `spec.md` per generation, versioned by date and mode. The spec is the executable contract: stories use EARS format, decisions are inline ADRs, and the plan slots straight into `/ralph`.
 
 Sister skills: `/compare-specs` (diff two specs) and `/compare-codebase-to-spec` (drift audit). Render to PDF via the llm-wiki `/generate pdf` skill.
+
+## Lifecycle: vault genesis → repo graduation
+
+Specs go through three phases. Storage moves with the phase.
+
+| Phase | Where the spec lives | Status field | Trigger |
+|---|---|---|---|
+| 1. Genesis | Vault: `vaults/llm-wiki-<vault>/wiki/specs/<name>-spec-v1-fresh-YYYY-MM-DD.md` | `draft` then `accepted` | `/generate-spec --mode fresh --vault <name> <project>` |
+| 2. Graduation | Repo: `docs/specs/spec-v1-fresh-YYYY-MM-DD.md` (copy of vault canonical) | vault entry: `graduated-to-repo`, repo entry: `accepted` | Repo scaffolded from spec; copy + cross-link both sides |
+| 3. Living spec | Repo: `docs/specs/spec-v<N>-from-codebase-YYYY-MM-DD.md` | each version: `draft` → `accepted` → `superseded` | `/generate-spec --mode from-codebase` after each phase ships |
+
+A spec born inside an existing repo (no vault step) jumps straight to phase 3 storage.
 
 ## Usage
 
 ```
-/generate-spec --mode fresh <name>                   # greenfield, interactive interview
-/generate-spec --mode from-codebase <name>           # analyse existing repo at cwd
-/generate-spec --mode from-codebase --repo <path>    # analyse a specific repo
-/generate-spec --pdf <name>                          # also render PDF
-/generate-spec --vault <vault-short> <name>          # mirror summary into a vault
+# Phase 1, vault genesis (no repo yet)
+/generate-spec --mode fresh --vault <vault-short> <name>
+
+# Phase 3, in an existing repo (cwd is the repo)
+/generate-spec --mode from-codebase <name>
+/generate-spec --mode from-codebase --repo <path> <name>
+
+# Both at once: write canonical to vault, mirror to repo's docs/specs/
+/generate-spec --mode fresh --vault <vault-short> --repo <path> <name>
+
+# Render PDF alongside markdown
+/generate-spec --pdf ...
 ```
 
-`<name>` is kebab-case. Defaults to repo's package.json name or directory name.
+`<name>` is kebab-case. Defaults to repo's `package.json` name or directory name when `--repo` is set; otherwise the user must supply it.
 
-## Output
+## Storage rules
 
-Path: `<repo>/docs/specs/spec-v<N>-<mode>-YYYY-MM-DD.md`
+Pick the destination by which flags are set:
 
-Where `<N>` auto-increments by counting existing `spec-v*.md` files. Mode is `fresh` or `from-codebase`. Always create `docs/specs/` if missing.
+| `--vault` | `--repo` (or cwd is a repo) | Canonical path | Mirror? |
+|---|---|---|---|
+| set | not set | `vaults/llm-wiki-<vault>/wiki/specs/<name>-spec-v<N>-<mode>-YYYY-MM-DD.md` | none |
+| not set | set | `<repo>/docs/specs/spec-v<N>-<mode>-YYYY-MM-DD.md` | none |
+| set | set | `<repo>/docs/specs/spec-v<N>-<mode>-YYYY-MM-DD.md` | summary stub in vault with cross-vault link to repo path |
+| not set | not set | error: ask the user where to write |
 
-If `--pdf`, also render `<repo>/docs/specs/spec-v<N>-<mode>-YYYY-MM-DD.pdf` by invoking `/generate pdf` against the markdown file.
+In all cases:
+- `<N>` auto-increments by counting existing `spec-v*.md` files in the canonical directory.
+- Always create the canonical directory if missing.
+- The vault summary stub (when both flags are set) is short: title, frontmatter, one-paragraph summary, and a cross-vault markdown link to the repo path. It is not a duplicate of the spec.
 
-If `--vault <vault-short>`, write a summary stub to `vaults/llm-wiki-<vault-short>/wiki/specs/<name>-spec-v<N>.md` with a cross-vault link back to the source spec.
+## PDF render
+
+If `--pdf`, also render the canonical markdown via `/generate pdf` and write next to it (same directory, `.pdf` extension). Print both paths.
 
 ## --mode fresh
 
@@ -85,10 +114,11 @@ title: <Project> Spec
 version: v<N>
 date: YYYY-MM-DD
 mode: fresh | from-codebase
-status: draft | reviewed | accepted | superseded
-repo: <path or git url>
+status: draft | reviewed | accepted | graduated-to-repo | superseded
+repo: <path or git url, or empty string for vault-genesis specs>
 related-vault: <vault-short or empty>
-supersedes: <previous version or empty>
+graduated-from-vault: <vault-short and path, set when phase moves to repo>
+supersedes: <previous version path or empty>
 ---
 
 # <Project> Spec, v<N>
@@ -223,10 +253,24 @@ For fresh mode: list AskUserQuestion answers as session memory.
 
 ## Versioning rules
 
-- v1 is the first spec for the project regardless of mode.
+- v1 is the first spec for the project regardless of mode and regardless of whether it lives in a vault or a repo.
 - Each subsequent generation increments `<N>`. Never overwrite an existing file.
-- The `supersedes` frontmatter field links to the previous version.
-- Status starts as `draft`. User updates to `reviewed` after reading, `accepted` after sign-off, `superseded` when a newer version replaces it.
+- Version count is per-project, not per-location: a v1 in a vault that graduates to a repo stays v1 in the repo. The next from-codebase generation is v2.
+- The `supersedes` frontmatter field links to the previous version (use the canonical path at the time of writing).
+- Status flow: `draft` → `accepted` → (`graduated-to-repo` if vault genesis) → `superseded` (when a newer version replaces it).
+
+## Graduation: moving a vault spec into a repo
+
+When the user is ready to scaffold the repo from an accepted vault spec, the manual hand-off is:
+
+1. Read the accepted vault spec.
+2. Create / scaffold the repo (e.g. via `/new-tanstack-app` or by hand).
+3. Copy the spec to `<repo>/docs/specs/spec-v<N>-fresh-YYYY-MM-DD.md` (preserve the original date and mode in the filename; this is the genesis spec graduating, not a new generation).
+4. In the **repo copy**, set frontmatter `repo: <repo-url>`, `graduated-from-vault: <vault-short>:<original vault path>`, `status: accepted`.
+5. In the **vault original**, set frontmatter `status: graduated-to-repo` and add a cross-vault link to the repo file.
+6. Both files now point at each other. The repo copy is the living source from this point; vault original is preserved as the genesis snapshot.
+
+A future skill (`/spec-to-repo`) will automate steps 2-5; for now do it by hand.
 
 ## After writing
 
