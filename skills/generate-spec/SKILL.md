@@ -216,6 +216,7 @@ For fresh mode: list AskUserQuestion answers as session memory.
 - No AI-tell vocabulary (delve, leverage, robust, seamless, tapestry, landscape, "in today's fast-paced world", "elevate", "empower", "unlock", "streamline" as filler).
 - Tables over bullet lists when the data has 3+ columns of attributes.
 - Mermaid diagrams: use the Observatory color theme (amber `#e0af40` for user/sources, cyan `#5bbcd6` for engine, green `#7dcea0` for outputs).
+- Mermaid edge labels: spell the trigger, not the jargon. Use `on cache miss`, `on error`, `if signed in`, not `miss`, `err`, `auth`. A reader should understand the edge without knowing the system.
 - EARS format only for acceptance criteria. Story description still uses "As a X, I want Y, so that Z".
 - Mark every inferred item from from-codebase mode with `(inferred)` so reviewers know to validate.
 - One ADR per decision row. Don't pack multiple decisions into one cell.
