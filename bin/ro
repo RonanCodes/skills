@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# ro — meta-CLI for ronan-skills.
+#
+# Today the only sub-command is `context`, which switches between per-account
+# credential contexts (personal, simplicity, ...). When you switch context,
+# `~/.claude/.env` becomes a symlink to the matching `~/.claude/.env.<name>`
+# file, and `~/.config/ro/active-context` records the name.
+#
+# Skills don't need code changes: anything that already does
+#   set -a; source ~/.claude/.env; set +a
+# automatically picks up the active context's credentials.
+#
+# Layout:
+#   ~/.claude/.env                 → symlink to active context file
+#   ~/.claude/.env.<name>          → real file per context (mode 600)
+#   ~/.config/ro/active-context    → text file with the active name
+#
+# Source of truth: this script lives in the ronan-skills repo at bin/ro;
+# `~/.local/bin/ro` should be a symlink back to it so edits ride with git.
+
+set -euo pipefail
+
+ENV_DIR="${HOME}/.claude"
+ENV_LINK="${ENV_DIR}/.env"
+ACTIVE_FILE="${HOME}/.config/ro/active-context"
+
+usage() {
+  cat <<'USAGE'
+ro — switch the active credential context for ronan-skills
+
+Usage:
+  ro context show              # print the active context name
+  ro context list              # list available contexts
+  ro context use <name>        # switch to <name> (e.g. personal, simplicity)
+  ro context path              # absolute path of the active env file
+  ro context diff <a> <b>      # show which keys differ between two contexts (no values)
+
+Each context is a file at ~/.claude/.env.<name> (mode 600). The symlink
+~/.claude/.env points at the active one. Existing skills that source
+~/.claude/.env keep working unchanged.
+
+Examples:
+  ro context use simplicity
+  ro context show
+  ro context list
+USAGE
+}
+
+cmd_context_show() {
+  if [[ -f "${ACTIVE_FILE}" ]]; then
+    cat "${ACTIVE_FILE}"
+  else
+    # Fallback: derive from symlink if active-context file is missing.
+    if [[ -L "${ENV_LINK}" ]]; then
+      basename "$(readlink "${ENV_LINK}")" | sed 's/^\.env\.//'
+    else
+      echo "unknown" >&2
+      exit 1
+    fi
+  fi
+}
+
+cmd_context_list() {
+  local active
+  active="$(cmd_context_show 2>/dev/null || true)"
+  shopt -s nullglob
+  for f in "${ENV_DIR}"/.env.*; do
+    local base name marker
+    base="$(basename "$f")"
+    case "$base" in
+      *.bak.*) continue ;;  # skip backups
+      *.swp|*.swo) continue ;;
+    esac
+    name="${base#.env.}"
+    marker="  "
+    [[ "$name" == "$active" ]] && marker="* "
+    echo "${marker}${name}"
+  done
+}
+
+cmd_context_use() {
+  local name="${1:-}"
+  if [[ -z "$name" ]]; then
+    echo "ro: missing context name" >&2
+    echo "Available:" >&2
+    cmd_context_list >&2
+    exit 2
+  fi
+
+  local target="${ENV_DIR}/.env.${name}"
+  if [[ ! -f "$target" ]]; then
+    echo "ro: no env file at ${target}" >&2
+    echo "Create it first, e.g.:" >&2
+    echo "  umask 077 && touch ${target} && chmod 600 ${target}" >&2
+    exit 2
+  fi
+
+  # Refuse to clobber a regular file masquerading as the symlink.
+  if [[ -e "${ENV_LINK}" && ! -L "${ENV_LINK}" ]]; then
+    echo "ro: ${ENV_LINK} is a regular file, not a symlink." >&2
+    echo "  Move it aside (mv ~/.claude/.env ~/.claude/.env.legacy) before switching." >&2
+    exit 1
+  fi
+
+  mkdir -p "$(dirname "${ACTIVE_FILE}")"
+  ln -sfn "$target" "${ENV_LINK}"
+  printf '%s\n' "$name" > "${ACTIVE_FILE}"
+  echo "Switched to: ${name}"
+  echo "  ${ENV_LINK} -> ${target}"
+}
+
+cmd_context_path() {
+  if [[ -L "${ENV_LINK}" ]]; then
+    readlink "${ENV_LINK}"
+  else
+    echo "${ENV_LINK}"
+  fi
+}
+
+cmd_context_diff() {
+  local a="${1:-}" b="${2:-}"
+  if [[ -z "$a" || -z "$b" ]]; then
+    echo "ro: usage: ro context diff <a> <b>" >&2
+    exit 2
+  fi
+  local fa="${ENV_DIR}/.env.${a}" fb="${ENV_DIR}/.env.${b}"
+  for f in "$fa" "$fb"; do
+    [[ -f "$f" ]] || { echo "ro: missing $f" >&2; exit 2; }
+  done
+  # Diff keys only, no values, to avoid leaking secrets to a terminal.
+  local tmp_a tmp_b
+  tmp_a="$(mktemp)" tmp_b="$(mktemp)"
+  trap 'rm -f "$tmp_a" "$tmp_b"' EXIT
+  grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$fa" | cut -d= -f1 | sort -u > "$tmp_a"
+  grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$fb" | cut -d= -f1 | sort -u > "$tmp_b"
+  diff -u --label "${a}/keys" --label "${b}/keys" "$tmp_a" "$tmp_b" || true
+}
+
+case "${1:-}" in
+  context)
+    case "${2:-show}" in
+      show) cmd_context_show ;;
+      list) cmd_context_list ;;
+      use)  cmd_context_use "${3:-}" ;;
+      path) cmd_context_path ;;
+      diff) cmd_context_diff "${3:-}" "${4:-}" ;;
+      -h|--help|help) usage ;;
+      *) echo "ro: unknown context sub-command: ${2}" >&2; usage; exit 2 ;;
+    esac
+    ;;
+  -h|--help|help|"")
+    usage
+    ;;
+  *)
+    echo "ro: unknown command: ${1}" >&2
+    usage
+    exit 2
+    ;;
+esac
