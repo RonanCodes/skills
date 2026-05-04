@@ -181,7 +181,9 @@ scripts: [
       applicationCategory: 'GameApplication',
       operatingSystem: 'Web',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-      author: { '@type': 'Person', name: 'Ronan Connolly', url: 'https://ronanconnolly.dev' },
+      // Author identity: pull from your siteConfig / env so the skill works
+      // for any project. Personal example: 'Ronan Connolly' / 'https://ronanconnolly.dev'.
+      author: { '@type': 'Person', name: siteConfig.author.name, url: siteConfig.author.url },
     }),
   },
 ],

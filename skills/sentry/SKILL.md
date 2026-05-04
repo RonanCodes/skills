@@ -210,7 +210,7 @@ curl -s -X POST "${SENTRY_REGION_URL}/api/0/organizations/${SENTRY_ORG}/releases
   -d "{
     \"version\": \"${VERSION}\",
     \"projects\": [\"${PROJECT_SLUG}\"],
-    \"refs\": [{\"repository\": \"ronan-connolly/${REPO}\", \"commit\": \"${VERSION}\"}]
+    \"refs\": [{\"repository\": \"${GH_OWNER:-$(gh repo view --json owner --jq .owner.login)}/${REPO}\", \"commit\": \"${VERSION}\"}]
   }"
 
 # 2. Upload source maps (via sentry-cli)
