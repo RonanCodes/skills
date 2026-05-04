@@ -67,6 +67,11 @@ if (typeof window !== "undefined" && import.meta.env.PROD) {
       Sentry.feedbackIntegration({
         colorScheme: "system",
         showBranding: false,
+        // Ronan default: don't auto-inject the floating bottom-right widget.
+        // Attach to an in-footer button (see "Footer-attached feedback button"
+        // section below). Floating UI is noisy on marketing sites and easy
+        // to miss — footer trigger lives where users already look.
+        autoInject: false,
       }),
     ],
     tracesSampleRate: 0.1,
@@ -78,7 +83,46 @@ if (typeof window !== "undefined" && import.meta.env.PROD) {
 
 **Defaults rationale:** integrations array is the load-bearing line — `replaysOnErrorSampleRate` is a no-op without `replayIntegration()`, same for `tracesSampleRate` without `browserTracingIntegration()`. Skipping it is the most common reason "Sentry's wired but I see nothing."
 
-**`feedbackIntegration` is on by default** for utility apps. It renders a small floating "Report a Bug" button that opens a one-shot form (name, email, description, optional screenshot) and creates a Sentry issue tagged as user feedback. For a no-auth side project this replaces the missing contact form. Drop it for apps that already have a richer in-app feedback path.
+**`feedbackIntegration` is on by default** for utility apps. It opens a one-shot form (name, email, description, optional screenshot) and creates a Sentry issue tagged as user feedback. For a no-auth side project this replaces the missing contact form. Drop it for apps that already have a richer in-app feedback path.
+
+### Footer-attached feedback button (Ronan default)
+
+The Sentry SDK's default `feedbackIntegration()` auto-injects a floating "Report a Bug" button bottom-right. Looks tacked-on, easy to miss on a long page, and clashes with the visual language of marketing/portfolio sites.
+
+**Default for every Ronan project:** set `autoInject: false` in the integration config (above) and attach the widget to a button you place in the site footer next to the copyright line. The button reads as part of the chrome; the floating widget reads as a vendor stamp.
+
+**Footer button (Astro example):**
+
+```astro
+<!-- src/components/Footer.astro, in the bottom flex row alongside copyright -->
+<button
+  type="button"
+  id="sentry-feedback-trigger"
+  class="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+>
+  <Icon name="lucide:megaphone" class="w-4 h-4" />
+  {t.footer.reportBug}
+</button>
+```
+
+**Wire-up in the Sentry init:**
+
+```ts
+// after Sentry.init({...}) has resolved
+const bindFeedback = () => {
+  const feedback = Sentry.getFeedback();
+  const trigger = document.getElementById("sentry-feedback-trigger");
+  if (feedback && trigger) feedback.attachTo(trigger);
+};
+bindFeedback();
+// Re-bind on Astro view transitions / SPA routes — the previous trigger
+// node gets swapped out and the prior `attachTo` reference goes stale.
+document.addEventListener("astro:page-load", bindFeedback);
+```
+
+**Translation strings:** `footer.reportBug` → `"Report a bug"` (en) / `"Bug melden"` (nl) / equivalent for any other locale you ship.
+
+**Why bind on page-load:** Astro's `<ViewTransitions>` (and Tanstack Start's client router) swap the body, which destroys the previous trigger element. Without re-binding, the button stops opening the widget after the first SPA navigation. Same pattern applies to any framework with client-side routing.
 
 ### Cross-link with PostHog
 
