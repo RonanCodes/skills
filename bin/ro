@@ -1,75 +1,274 @@
 #!/usr/bin/env bash
 # ro — meta-CLI for ronan-skills.
 #
-# Today the only sub-command is `context`, which switches between per-account
-# credential contexts (personal, simplicity, ...). When you switch context,
-# `~/.claude/.env` becomes a symlink to the matching `~/.claude/.env.<name>`
-# file, and `~/.config/ro/active-context` records the name.
+# `ro context` resolves which credential profile is active for the current
+# working directory using a three-tier precedence chain (highest first):
 #
-# Skills don't need code changes: anything that already does
-#   set -a; source ~/.claude/.env; set +a
-# automatically picks up the active context's credentials.
+#   0. $RO_CONTEXT environment variable        (one-shot override for a single shell)
+#   1. .ro-context.local in cwd or ancestor    (gitignored, contributor override)
+#   2. .ro-context in cwd or ancestor          (committed, repo's declared context)
+#   3. cwd-glob rule in ~/.claude/contexts.json
+#   4. default in ~/.claude/contexts.json
 #
-# Layout:
-#   ~/.claude/.env                 → symlink to active context file
+# Plus a manual override:
+#
+#   `ro context use <name>` sets active=<name> in contexts.json (sticks until
+#   `ro context auto` clears it). Used when cwd doesn't tell the right story
+#   (e.g. you're editing a credential file outside any repo).
+#
+# Skills that need credentials should source via:
+#   set -a; source "$(ro context env)"; set +a
+#
+# Backwards compat: ~/.claude/.env stays as a symlink to whichever context's
+# env file is currently active. Skills that haven't migrated to `ro context
+# env` keep working unchanged.
+#
+# Layout (all under ~/.claude/, no split with ~/.config/):
+#   ~/.claude/.env                 → symlink to ~/.claude/.env.<active>
 #   ~/.claude/.env.<name>          → real file per context (mode 600)
-#   ~/.config/ro/active-context    → text file with the active name
-#
-# Source of truth: this script lives in the ronan-skills repo at bin/ro;
-# `~/.local/bin/ro` should be a symlink back to it so edits ride with git.
+#   ~/.claude/contexts.json        → rules + default + manual override
 
 set -euo pipefail
 
 ENV_DIR="${HOME}/.claude"
 ENV_LINK="${ENV_DIR}/.env"
-ACTIVE_FILE="${HOME}/.config/ro/active-context"
+CONFIG_FILE="${ENV_DIR}/contexts.json"
+
+# Legacy state from v1 (gets migrated on `ro context init` or first resolve)
+LEGACY_ACTIVE="${HOME}/.config/ro/active-context"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ────────────────────────────────────────────────────────────────────────────
+
+die() {
+  echo "ro: $*" >&2
+  exit 1
+}
+
+require_jq() {
+  command -v jq >/dev/null 2>&1 || die "jq is required (brew install jq)"
+}
+
+# Find a file walking up from cwd to $HOME (inclusive). Echoes the absolute
+# path or returns 1 if not found. Doesn't traverse above $HOME.
+find_ancestor_file() {
+  local name="$1"
+  local dir
+  dir="$(pwd -P)"
+  while [[ -n "$dir" ]]; do
+    if [[ -f "$dir/$name" ]]; then
+      echo "$dir/$name"
+      return 0
+    fi
+    [[ "$dir" == "$HOME" || "$dir" == "/" ]] && return 1
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+read_first_line() {
+  # First non-blank, non-comment line of a file, trimmed.
+  awk 'NF && $1 !~ /^#/ { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0); print; exit }' "$1"
+}
+
+# Expand ~ and $HOME in a glob pattern so it can be matched against absolute paths.
+expand_pattern() {
+  local p="$1"
+  p="${p/#\~/$HOME}"
+  p="${p//\$HOME/$HOME}"
+  echo "$p"
+}
+
+# Bash-style glob match. Handles `**` as "anything including /".
+match_glob() {
+  local pattern="$1"
+  local path="$2"
+  pattern="$(expand_pattern "$pattern")"
+  # Translate ** → * for shell glob (a single * already matches /)
+  # Use [[ with extglob: enable shopt
+  shopt -s extglob globstar 2>/dev/null || true
+  # shellcheck disable=SC2053
+  [[ "$path" == $pattern ]]
+}
+
+ensure_config_exists() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    return 0
+  fi
+  require_jq
+  mkdir -p "$ENV_DIR"
+  # Migrate from v1: default = "personal" (the convention), and `active` is
+  # only carried over if the v1 user had explicitly switched away from
+  # personal. Avoids the foot-gun where the migration silently makes the
+  # last-switched context the new default.
+  local default="personal"
+  local active="null"
+  if [[ -f "$LEGACY_ACTIVE" ]]; then
+    local legacy
+    legacy="$(read_first_line "$LEGACY_ACTIVE" || true)"
+    if [[ -n "$legacy" && "$legacy" != "personal" ]]; then
+      active="\"${legacy}\""
+    fi
+  fi
+  cat > "$CONFIG_FILE" <<EOF
+{
+  "default": "${default}",
+  "active": ${active},
+  "rules": []
+}
+EOF
+  chmod 600 "$CONFIG_FILE"
+}
+
+read_config() {
+  ensure_config_exists
+  require_jq
+  jq -r "$1" "$CONFIG_FILE"
+}
+
+write_config() {
+  require_jq
+  ensure_config_exists
+  local tmp
+  tmp="$(mktemp)"
+  jq "$1" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+}
+
+env_file_for() {
+  local name="$1"
+  echo "${ENV_DIR}/.env.${name}"
+}
+
+update_symlink() {
+  local name="$1"
+  local target
+  target="$(env_file_for "$name")"
+  if [[ ! -f "$target" ]]; then
+    echo "ro: warning — env file does not exist: $target" >&2
+    return 1
+  fi
+  if [[ -e "$ENV_LINK" && ! -L "$ENV_LINK" ]]; then
+    echo "ro: ${ENV_LINK} is a regular file, refusing to clobber. Move it aside (mv ${ENV_LINK} ${ENV_LINK}.legacy) and retry." >&2
+    return 1
+  fi
+  ln -sfn "$target" "$ENV_LINK"
+}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Resolution
+# ────────────────────────────────────────────────────────────────────────────
+
+# Returns (source, name) on stdout, one per line, in this order: source then name.
+# Source is one of: env, active, .ro-context.local, .ro-context, rule, default.
+resolve_with_source() {
+  if [[ -n "${RO_CONTEXT:-}" ]]; then
+    echo "env"
+    echo "$RO_CONTEXT"
+    return 0
+  fi
+
+  ensure_config_exists
+
+  local active
+  active="$(read_config '.active // empty')"
+  if [[ -n "$active" ]]; then
+    echo "active"
+    echo "$active"
+    return 0
+  fi
+
+  local found
+  if found="$(find_ancestor_file ".ro-context.local")"; then
+    echo ".ro-context.local ($found)"
+    read_first_line "$found"
+    return 0
+  fi
+  if found="$(find_ancestor_file ".ro-context")"; then
+    echo ".ro-context ($found)"
+    read_first_line "$found"
+    return 0
+  fi
+
+  local cwd
+  cwd="$(pwd -P)"
+  # Walk rules in declared order, first match wins.
+  local rule_count
+  rule_count="$(read_config '.rules | length')"
+  for ((i = 0; i < rule_count; i++)); do
+    local pattern context
+    pattern="$(read_config ".rules[$i][0]")"
+    context="$(read_config ".rules[$i][1]")"
+    if match_glob "$pattern" "$cwd"; then
+      echo "rule (${pattern})"
+      echo "$context"
+      return 0
+    fi
+  done
+
+  echo "default"
+  read_config '.default'
+}
+
+# ────────────────────────────────────────────────────────────────────────────
+# Sub-commands
+# ────────────────────────────────────────────────────────────────────────────
 
 usage() {
   cat <<'USAGE'
-ro — switch the active credential context for ronan-skills
+ro — switch credential profiles for ronan-skills
+
+Resolution (highest priority first):
+  $RO_CONTEXT env var   →   contexts.json:active   →   .ro-context.local
+  →   .ro-context   →   contexts.json:rules (cwd globs)   →   contexts.json:default
 
 Usage:
-  ro context show              # print the active context name
-  ro context list              # list available contexts
-  ro context use <name>        # switch to <name> (e.g. personal, simplicity)
-  ro context path              # absolute path of the active env file
-  ro context diff <a> <b>      # show which keys differ between two contexts (no values)
+  ro context show              # print the resolved context name
+  ro context where             # print where the resolution came from
+  ro context env               # print absolute path of the resolved env file (use this in skills)
+  ro context list              # list available contexts (env.<name> files)
+  ro context use <name>        # pin active=<name> in contexts.json (manual override)
+  ro context auto              # clear the active override, fall back to cwd resolution
+  ro context init              # first-time setup; migrates from v1 layout if present
+  ro context add-rule <pattern> <name>   # append a cwd-glob rule
+  ro context diff <a> <b>      # compare keys (no values) between two contexts
+  ro context path              # alias for `ro context env` (legacy)
 
-Each context is a file at ~/.claude/.env.<name> (mode 600). The symlink
-~/.claude/.env points at the active one. Existing skills that source
-~/.claude/.env keep working unchanged.
+Skills should source via:
+  set -a; source "$(ro context env)"; set +a
 
-Examples:
-  ro context use simplicity
-  ro context show
-  ro context list
+Per-repo override (committed):     .ro-context           # one line, just the context name
+Per-repo override (gitignored):    .ro-context.local
 USAGE
 }
 
-cmd_context_show() {
-  if [[ -f "${ACTIVE_FILE}" ]]; then
-    cat "${ACTIVE_FILE}"
-  else
-    # Fallback: derive from symlink if active-context file is missing.
-    if [[ -L "${ENV_LINK}" ]]; then
-      basename "$(readlink "${ENV_LINK}")" | sed 's/^\.env\.//'
-    else
-      echo "unknown" >&2
-      exit 1
-    fi
-  fi
+cmd_show() {
+  resolve_with_source | tail -1
 }
 
-cmd_context_list() {
+cmd_where() {
+  local out
+  out="$(resolve_with_source)"
+  local source name
+  source="$(echo "$out" | head -1)"
+  name="$(echo "$out" | tail -1)"
+  printf 'context = %s   (resolved from: %s)\n' "$name" "$source"
+}
+
+cmd_env() {
+  env_file_for "$(cmd_show)"
+}
+
+cmd_list() {
   local active
-  active="$(cmd_context_show 2>/dev/null || true)"
+  active="$(cmd_show)"
   shopt -s nullglob
   for f in "${ENV_DIR}"/.env.*; do
     local base name marker
     base="$(basename "$f")"
     case "$base" in
-      *.bak.*) continue ;;  # skip backups
-      *.swp|*.swo) continue ;;
+      *.bak.*|*.swp|*.swo) continue ;;
     esac
     name="${base#.env.}"
     marker="  "
@@ -78,56 +277,79 @@ cmd_context_list() {
   done
 }
 
-cmd_context_use() {
+cmd_use() {
   local name="${1:-}"
-  if [[ -z "$name" ]]; then
-    echo "ro: missing context name" >&2
-    echo "Available:" >&2
-    cmd_context_list >&2
-    exit 2
-  fi
-
-  local target="${ENV_DIR}/.env.${name}"
-  if [[ ! -f "$target" ]]; then
-    echo "ro: no env file at ${target}" >&2
-    echo "Create it first, e.g.:" >&2
-    echo "  umask 077 && touch ${target} && chmod 600 ${target}" >&2
-    exit 2
-  fi
-
-  # Refuse to clobber a regular file masquerading as the symlink.
-  if [[ -e "${ENV_LINK}" && ! -L "${ENV_LINK}" ]]; then
-    echo "ro: ${ENV_LINK} is a regular file, not a symlink." >&2
-    echo "  Move it aside (mv ~/.claude/.env ~/.claude/.env.legacy) before switching." >&2
-    exit 1
-  fi
-
-  mkdir -p "$(dirname "${ACTIVE_FILE}")"
-  ln -sfn "$target" "${ENV_LINK}"
-  printf '%s\n' "$name" > "${ACTIVE_FILE}"
-  echo "Switched to: ${name}"
+  [[ -z "$name" ]] && die "missing context name. Available:$(printf '\n')$(cmd_list)"
+  local target
+  target="$(env_file_for "$name")"
+  [[ -f "$target" ]] || die "no env file at ${target}. Create it first (umask 077; touch ${target})."
+  write_config ".active = \"${name}\""
+  update_symlink "$name"
+  echo "Switched to: ${name}  (override; clear with 'ro context auto')"
   echo "  ${ENV_LINK} -> ${target}"
 }
 
-cmd_context_path() {
-  if [[ -L "${ENV_LINK}" ]]; then
-    readlink "${ENV_LINK}"
-  else
-    echo "${ENV_LINK}"
-  fi
+cmd_auto() {
+  write_config '.active = null'
+  local resolved
+  resolved="$(cmd_show)"
+  update_symlink "$resolved" || true
+  echo "Cleared override. Active context now resolves dynamically: ${resolved}"
 }
 
-cmd_context_diff() {
-  local a="${1:-}" b="${2:-}"
-  if [[ -z "$a" || -z "$b" ]]; then
-    echo "ro: usage: ro context diff <a> <b>" >&2
-    exit 2
+cmd_init() {
+  ensure_config_exists
+  if [[ ! -f "$(env_file_for personal)" ]]; then
+    umask 077
+    cat > "$(env_file_for personal)" <<'TEMPLATE'
+# ============================================================
+# Claude Code — Global Environment Variables (personal context)
+# ============================================================
+# Edit values; do not commit. Add API tokens for the skills you use.
+# Switch contexts with: ro context use <name>
+
+# --- Cloudflare ---
+# CLOUDFLARE_API_TOKEN=
+# CLOUDFLARE_ACCOUNT_ID=
+
+# --- Sentry ---
+# SENTRY_AUTH_TOKEN=
+# SENTRY_ORG=
+
+# --- PostHog ---
+# POSTHOG_PERSONAL_API_KEY=
+# POSTHOG_HOST=https://eu.posthog.com
+# POSTHOG_INGEST_HOST=https://eu.i.posthog.com
+TEMPLATE
+    chmod 600 "$(env_file_for personal)"
+    echo "Created template: $(env_file_for personal)"
   fi
-  local fa="${ENV_DIR}/.env.${a}" fb="${ENV_DIR}/.env.${b}"
+  if [[ ! -L "$ENV_LINK" && ! -e "$ENV_LINK" ]]; then
+    ln -sfn "$(env_file_for personal)" "$ENV_LINK"
+    echo "Linked: $ENV_LINK -> $(env_file_for personal)"
+  fi
+  echo "Done. Edit $(env_file_for personal) and add credentials."
+  echo "To add another context: cp $(env_file_for personal) $(env_file_for work) && ro context use work"
+  echo "To add cwd-glob auto-resolution: ro context add-rule '~/Github-Simplicity/**' simplicity"
+}
+
+cmd_add_rule() {
+  local pattern="${1:-}"
+  local name="${2:-}"
+  [[ -z "$pattern" || -z "$name" ]] && die "usage: ro context add-rule <pattern> <context-name>"
+  write_config ".rules += [[\"${pattern}\", \"${name}\"]]"
+  echo "Added rule: ${pattern} → ${name}"
+}
+
+cmd_diff() {
+  local a="${1:-}" b="${2:-}"
+  [[ -z "$a" || -z "$b" ]] && die "usage: ro context diff <a> <b>"
+  local fa fb
+  fa="$(env_file_for "$a")"
+  fb="$(env_file_for "$b")"
   for f in "$fa" "$fb"; do
-    [[ -f "$f" ]] || { echo "ro: missing $f" >&2; exit 2; }
+    [[ -f "$f" ]] || die "missing $f"
   done
-  # Diff keys only, no values, to avoid leaking secrets to a terminal.
   local tmp_a tmp_b
   tmp_a="$(mktemp)" tmp_b="$(mktemp)"
   trap 'rm -f "$tmp_a" "$tmp_b"' EXIT
@@ -136,24 +358,26 @@ cmd_context_diff() {
   diff -u --label "${a}/keys" --label "${b}/keys" "$tmp_a" "$tmp_b" || true
 }
 
+# ────────────────────────────────────────────────────────────────────────────
+# Dispatch
+# ────────────────────────────────────────────────────────────────────────────
+
 case "${1:-}" in
   context)
     case "${2:-show}" in
-      show) cmd_context_show ;;
-      list) cmd_context_list ;;
-      use)  cmd_context_use "${3:-}" ;;
-      path) cmd_context_path ;;
-      diff) cmd_context_diff "${3:-}" "${4:-}" ;;
-      -h|--help|help) usage ;;
+      show|resolve)             cmd_show ;;
+      where)                    cmd_where ;;
+      env|path)                 cmd_env ;;
+      list)                     cmd_list ;;
+      use)                      cmd_use "${3:-}" ;;
+      auto)                     cmd_auto ;;
+      init)                     cmd_init ;;
+      add-rule|add_rule|rule)   cmd_add_rule "${3:-}" "${4:-}" ;;
+      diff)                     cmd_diff "${3:-}" "${4:-}" ;;
+      -h|--help|help)           usage ;;
       *) echo "ro: unknown context sub-command: ${2}" >&2; usage; exit 2 ;;
     esac
     ;;
-  -h|--help|help|"")
-    usage
-    ;;
-  *)
-    echo "ro: unknown command: ${1}" >&2
-    usage
-    exit 2
-    ;;
+  -h|--help|help|"")             usage ;;
+  *) echo "ro: unknown command: ${1}" >&2; usage; exit 2 ;;
 esac
