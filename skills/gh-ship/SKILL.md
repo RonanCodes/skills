@@ -191,7 +191,7 @@ deploy:
 Then set secrets on the `production` environment (not repo-level, so non-main branches can't read them):
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 unset GITHUB_TOKEN GH_TOKEN   # see gotcha below
 REPO=<owner>/<repo>
 

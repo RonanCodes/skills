@@ -54,7 +54,7 @@ which summarize >/dev/null 2>&1 || {
 Source API keys from `~/.claude/.env` if present:
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 unset GITHUB_TOKEN GH_TOKEN   # important — see feedback_github_token_env memory
 ```
 

@@ -368,7 +368,7 @@ Push secrets to the `production` environment.
 Needs a `gh` token with `repo` scope and admin on the environment — if it 401s despite the unset, run `gh auth refresh -h github.com -s admin:repo_hook` and pass `--repo <owner>/<name>` explicitly:
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 unset GITHUB_TOKEN GH_TOKEN   # required — see gotcha above
 REPO=<owner>/<repo>
 

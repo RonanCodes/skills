@@ -24,11 +24,25 @@ The full backstory and per-gotcha rationale lives in `[[astro-cf-workers-migrati
 
 ### 0. Source existing credentials and pick the right CF context
 
-Before anything else:
+Before anything else, make sure ro is resolving the right context for this repo. Three options, cleanest first:
 
 ```bash
-ro context use <client-name>   # e.g. simplicity, personal, etc.
-set -a; source ~/.claude/.env; set +a
+# Option A — drop a .ro-context file at the repo root (committed, auto-resolves
+# for everyone who clones it; preferred for any repo with a stable owner/account)
+echo simplicity > .ro-context
+
+# Option B — already declared via a cwd-glob rule in ~/.claude/contexts.json
+#   (e.g. `~/Github-Simplicity/**` → `simplicity`)
+ro context where   # confirm the rule is hitting
+
+# Option C — manual session override, useful for one-off ports outside any rule
+ro context use <client-name>
+```
+
+Then load the env:
+
+```bash
+set -a; source "$(ro context env)"; set +a
 ```
 
 If the source domain is in a different CF account than the one currently active, the deploy will fail with cryptic auth errors and the cutover will partially break. Always verify:

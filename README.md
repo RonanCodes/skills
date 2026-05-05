@@ -29,15 +29,55 @@ npx skills add RonanCodes/ronan-skills/skills/commit -g
 
 ## Configuration
 
-Skills that need API keys read from a shared env file. Canonical location:
+Skills that need API keys read from a shared env file via the `ro` meta-CLI (`bin/ro`, symlinked to `~/.local/bin/ro`).
 
-- **Default (all agents, all projects)**: `~/.claude/.env`
-- **Claude Code plugin override**: `${CLAUDE_PLUGIN_DATA}/.env` (persistent, survives plugin updates)
-- **Other agents**: `~/.config/ro/.env`
+### Single context (most users)
 
-Skills look up `~/.claude/.env` first, then fall back to the agent-specific paths above. See `.env.example` in this repo for every variable, where to generate it, and which skill consumes it.
+```bash
+~/.claude/.env.personal       # all your credentials (mode 600)
+~/.claude/.env                # symlink to .env.personal
+```
 
-Copy the keys from `.env.example` into `~/.claude/.env` and fill them in, or run `/ro:setup-wizard --tokens` for a guided walkthrough.
+Skills source via `$(ro context env)` which resolves to `~/.claude/.env.personal` automatically. See `.env.example` for every variable, where to generate it, and which skill consumes it. First-time setup:
+
+```bash
+ro context init               # creates the template + symlink
+# then edit ~/.claude/.env.personal and fill in your keys
+# or: /ro:setup-wizard --tokens for a guided walkthrough
+```
+
+### Multiple contexts (work / personal / per-client)
+
+If you have separate credentials per project (e.g. a personal Cloudflare account + a client's Cloudflare account), `ro` switches between them with a three-tier resolver:
+
+1. `$RO_CONTEXT` env var — one-shot override per shell
+2. `~/.claude/contexts.json:active` — manual override set by `ro context use <name>`
+3. `.ro-context.local` in cwd or any ancestor — gitignored contributor override
+4. `.ro-context` in cwd or any ancestor — committed, repo's declared context **(cleanest)**
+5. cwd-glob rule in `~/.claude/contexts.json` — e.g. `~/Github-Acme/**` → `acme`
+6. `default` in `~/.claude/contexts.json`
+
+```bash
+# Add another context
+cp ~/.claude/.env.personal ~/.claude/.env.acme
+# …edit with the client's credentials…
+
+# Pin a repo to its context (preferred — committed, no global config needed)
+echo acme > /path/to/repo/.ro-context
+
+# Or auto-resolve via cwd-globs
+ro context add-rule '~/Github-Acme/**' acme
+
+# See what resolves and why
+ro context where         # context = acme   (resolved from: .ro-context (...))
+ro context env           # /Users/you/.claude/.env.acme
+
+# Manual override (sticks until cleared)
+ro context use acme
+ro context auto          # back to cwd-resolution
+```
+
+Backwards compat: skills that haven't migrated to `$(ro context env)` keep working via the `~/.claude/.env` symlink, which `ro context use` updates.
 
 ## Skills
 
