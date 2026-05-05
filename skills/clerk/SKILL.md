@@ -1,6 +1,6 @@
 ---
 name: clerk
-description: Wire Clerk into a TanStack Start app on Cloudflare Workers, install, env config, ClerkProvider + drop-in UI components (SignIn, SignUp, UserButton, OrganizationSwitcher), server-side authenticateRequest helper, Drizzle shadow user table, webhook signature verification, organisations + multi-tenancy. Default auth pick for small SaaS where speed-to-market and out-of-the-box UI matter. Use when user wants to add Clerk, add auth, wire login, sign-in component, user button, organisation switcher, small SaaS auth, fastest auth, Clerk middleware, or hosted auth UI.
+description: Wire Clerk into a TanStack Start app on Cloudflare Workers using the dedicated @clerk/tanstack-react-start package. Install, env config, clerkMiddleware in src/start.ts, ClerkProvider in __root.tsx, drop-in UI components (SignIn, SignUp, UserButton, OrganizationSwitcher), server-side auth() helper for createServerFn, useUser / useAuth hooks for client routes, Drizzle shadow user table, webhook signature verification, organisations + multi-tenancy. Default auth pick for small SaaS where speed-to-market and out-of-the-box UI matter. Use when user wants to add Clerk, add auth, wire login, sign-in component, user button, organisation switcher, small SaaS auth, fastest auth, Clerk middleware, or hosted auth UI.
 category: auth
 argument-hint: [install | add-organizations | add-webhook | open-dashboard] [--social github,google]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(open *) Read Write Edit
@@ -8,14 +8,16 @@ allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(open 
 
 # Clerk
 
-Wire [Clerk](https://clerk.com) into a TanStack Start + Drizzle + D1 app on Cloudflare Workers. Hosted sign-in UI with drop-in React components, server-side session verification via `@clerk/backend`, organisations as first-class for B2B.
+Wire [Clerk](https://clerk.com) into a TanStack Start + Drizzle + D1 app on Cloudflare Workers. Hosted sign-in UI with drop-in React components, server-side session verification via the dedicated `@clerk/tanstack-react-start` package, organisations as first-class for B2B.
 
-This is the canonical auth pick for the user's stack as of 2026-04-30. Optimised for small SaaS where speed-to-first-working-sign-in matters more than scale features. For B2B-at-scale (100K+ MAU expected, partner needs hosted Admin Portal, near-term SAML SSO), use `/ro:workos`. For own-the-table semantics (RLS / FKs / EU residency mandate / fully custom flows), use `/ro:better-auth`. Comparisons: `llm-wiki-research/wiki/comparisons/auth-three-way-deep-dive.md`.
+This is the canonical auth pick for the user's stack as of 2026-05-05. Optimised for small SaaS where speed-to-first-working-sign-in matters more than scale features. For B2B-at-scale (100K+ MAU expected, partner needs hosted Admin Portal, near-term SAML SSO), use `/ro:workos`. For own-the-table semantics (RLS / FKs / EU residency mandate / fully custom flows), use `/ro:better-auth`. Comparisons: `llm-wiki-research/wiki/comparisons/auth-three-way-deep-dive.md`.
+
+**Why the dedicated TanStack package:** as of late 2025, Clerk ships `@clerk/tanstack-react-start` which integrates into TanStack Start's request middleware pipeline natively. It replaces the older `@clerk/clerk-react` + `@clerk/backend` two-package setup. The dedicated package handles env loading without requiring the `VITE_` prefix dance, exposes a clean `auth()` helper for `createServerFn` handlers, and a `clerkClient()` for fetching full user data server-side.
 
 ## Usage
 
 ```
-/ro:clerk install                              # initial wiring (env + provider + sign-in routes + middleware)
+/ro:clerk install                              # initial wiring (env + middleware + provider + sign-in routes)
 /ro:clerk install --social github,google       # + GitHub + Google providers
 /ro:clerk add-organizations                    # multi-tenant orgs + OrganizationSwitcher
 /ro:clerk add-webhook                          # /api/webhooks/clerk with svix signature verification
@@ -33,22 +35,22 @@ This is the canonical auth pick for the user's stack as of 2026-04-30. Optimised
 ### 1. Install dependencies
 
 ```bash
-pnpm add @clerk/clerk-react @clerk/backend
+pnpm add @clerk/tanstack-react-start
 pnpm add svix     # for webhook signature verification (only if using add-webhook)
 ```
 
-`@clerk/clerk-react` ships the drop-in components. `@clerk/backend` does session verification, runs in Workers (no Node-only APIs).
+The single `@clerk/tanstack-react-start` package ships drop-in components (client side), the `clerkMiddleware()` request integration, and `auth()` + `clerkClient()` helpers (server side). Runs in Workers, no Node-only APIs.
 
 ### 2. Per-app env vars
 
 ```bash
-# .dev.vars
+# .dev.vars (local dev) and .env (build-time fallback)
 CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 CLERK_WEBHOOK_SECRET=whsec_...      # only after add-webhook
 ```
 
-The publishable key is safe to expose in the client bundle. The secret key and webhook secret stay server-side.
+Both keys come from the Clerk dashboard, API Keys page. Production keys (`pk_live_`, `sk_live_`) are separate from test keys. **No `VITE_` prefix needed** with the new package; it handles client / server exposure internally.
 
 Production secrets:
 
@@ -58,29 +60,68 @@ wrangler secret put CLERK_SECRET_KEY
 wrangler secret put CLERK_WEBHOOK_SECRET     # only after add-webhook
 ```
 
-Both keys come from the Clerk dashboard, API Keys page. Production keys (`pk_live_`, `sk_live_`) are separate from test keys.
+### 3. Add `clerkMiddleware()` to the start instance, `src/start.ts`
 
-### 3. Wrap the app with ClerkProvider, `src/router.tsx` or `src/main.tsx`
+```ts
+import { clerkMiddleware } from '@clerk/tanstack-react-start';
+import { createStart } from '@tanstack/react-start';
 
-```tsx
-import { ClerkProvider } from '@clerk/clerk-react';
-
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-if (!publishableKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY');
-
-// In your root route or main render:
-<ClerkProvider publishableKey={publishableKey}>
-  <App />
-</ClerkProvider>
+export const startInstance = createStart(() => {
+  return {
+    requestMiddleware: [clerkMiddleware()],
+  };
+});
 ```
 
-The `VITE_CLERK_PUBLISHABLE_KEY` lands in the bundle at build time. Map it from `CLERK_PUBLISHABLE_KEY` in `vite.config.ts` or expose via `/api/config` if you want runtime injection (see `/ro:new-tanstack-app` step 9 for the runtime-config pattern).
+`clerkMiddleware()` runs before every request, reads the session cookie or `Authorization: Bearer` header, verifies the JWT against Clerk's JWKS (cached automatically), and populates the auth context that `auth()` reads downstream. No round-trip to Clerk's servers per request.
 
-### 4. Drop-in sign-in route, `src/routes/sign-in.tsx`
+### 4. Wrap the app with `<ClerkProvider>`, `src/routes/__root.tsx`
+
+```tsx
+import { ClerkProvider } from '@clerk/tanstack-react-start';
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router';
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
+import Header from '../components/Header';
+import appCss from '../styles.css?url';
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'Your App' },
+    ],
+    links: [{ rel: 'stylesheet', href: appCss }],
+  }),
+  shellComponent: RootDocument,
+});
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <ClerkProvider>
+          <Header />
+          {children}
+        </ClerkProvider>
+        <TanStackRouterDevtools />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+```
+
+Note: `<ClerkProvider>` does **not** take a `publishableKey` prop with this package. The middleware (Step 3) injects the publishable key into the SSR HTML, and the provider reads it from there. One less thing to wire.
+
+### 5. Drop-in sign-in route, `src/routes/sign-in.tsx`
 
 ```tsx
 import { createFileRoute } from '@tanstack/react-router';
-import { SignIn } from '@clerk/clerk-react';
+import { SignIn } from '@clerk/tanstack-react-start';
 
 export const Route = createFileRoute('/sign-in')({
   component: () => (
@@ -93,74 +134,147 @@ export const Route = createFileRoute('/sign-in')({
 
 Mirror with `src/routes/sign-up.tsx` using `<SignUp />`. That is the entire sign-in UI. No callback handler to write, Clerk's hosted flow handles OAuth round-trips and email verification.
 
-### 5. UserButton in the app shell
+### 6. UserButton in the app shell
 
 ```tsx
-import { UserButton } from '@clerk/clerk-react';
+import { UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/tanstack-react-start';
 
 export function AppHeader() {
   return (
     <header className="flex items-center justify-between p-4">
       <Logo />
-      <UserButton afterSignOutUrl="/" />
+      <SignedIn>
+        <UserButton afterSignOutUrl="/" />
+      </SignedIn>
+      <SignedOut>
+        <SignInButton />
+      </SignedOut>
     </header>
   );
 }
 ```
 
-`<UserButton />` renders the avatar with a menu including profile, account settings, sign-out, and (if orgs enabled) org switcher. This is the headline DX argument for Clerk vs the alternatives.
+`<UserButton />` renders the avatar with a menu including profile, account settings, sign-out, and (if orgs enabled) org switcher. `<SignedIn>` and `<SignedOut>` are control components that render their children only when the user is in the matching state. This is the headline DX argument for Clerk vs the alternatives.
 
-### 6. Server-side session verification, `src/lib/auth-server.ts`
-
-```ts
-import { createServerFn } from '@tanstack/react-start';
-import { getEvent } from '@tanstack/react-start/server';
-import { createClerkClient } from '@clerk/backend';
-
-export function getClerk(env: Env) {
-  return createClerkClient({
-    secretKey: env.CLERK_SECRET_KEY,
-    publishableKey: env.CLERK_PUBLISHABLE_KEY,
-  });
-}
-
-export const requireSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const event = getEvent();
-  const clerk = getClerk(event.context.cloudflare.env);
-  const { isAuthenticated, toAuth } = await clerk.authenticateRequest(event.request);
-  if (!isAuthenticated) throw new Response('Unauthorized', { status: 401 });
-  const auth = toAuth();
-  return {
-    userId: auth.userId,
-    sessionId: auth.sessionId,
-    organizationId: auth.orgId,
-    role: auth.orgRole,
-  };
-});
-```
-
-`authenticateRequest` reads the session cookie or `Authorization: Bearer` header, verifies the JWT against Clerk's public keys (cached in the Worker), and returns the auth state. No round-trip to Clerk's servers per request.
-
-### 7. Protect a route loader
+### 7. Protect a server function with `auth()`
 
 ```ts
 // src/routes/dashboard.tsx
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { requireSession } from '@/lib/auth-server';
+import { createServerFn } from '@tanstack/react-start';
+import { auth } from '@clerk/tanstack-react-start/server';
+
+const requireSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const { isAuthenticated, userId, orgId, orgRole } = await auth();
+  if (!isAuthenticated) {
+    throw redirect({ to: '/sign-in' });
+  }
+  return { userId, orgId, orgRole };
+});
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: async () => {
-    try {
-      return { auth: await requireSession() };
-    } catch {
-      throw redirect({ to: '/sign-in' });
-    }
-  },
+  beforeLoad: () => requireSessionFn(),
+  loader: ({ context }) => context,
   component: DashboardPage,
 });
 ```
 
-The session shape from `requireSession` flows to the page via `Route.useRouteContext()`.
+The session shape from `auth()` flows to the page via `Route.useLoaderData()` or `Route.useRouteContext()`. The middleware (Step 3) makes `auth()` cheap; it reads from already-verified context, no per-call JWT verification.
+
+## Reading user data
+
+Three patterns depending on where you need the data, server vs client, and how much you need.
+
+### Server function with full user data
+
+When the EARS criterion needs more than the `userId` (e.g. email, first name, image URL):
+
+```tsx
+// src/routes/dashboard.tsx
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createServerFn } from '@tanstack/react-start';
+import { auth, clerkClient } from '@clerk/tanstack-react-start/server';
+
+const dashboardLoadFn = createServerFn().handler(async () => {
+  const { isAuthenticated, userId } = await auth();
+  if (!isAuthenticated) throw redirect({ to: '/sign-in' });
+  const user = await clerkClient().users.getUser(userId);
+  return {
+    userId,
+    firstName: user.firstName,
+    email: user.emailAddresses[0]?.emailAddress,
+  };
+});
+
+export const Route = createFileRoute('/dashboard')({
+  beforeLoad: () => dashboardLoadFn(),
+  loader: ({ context }) => context,
+  component: Dashboard,
+});
+
+function Dashboard() {
+  const { firstName } = Route.useLoaderData();
+  return <h1>Welcome, {firstName}</h1>;
+}
+```
+
+### API route handler
+
+For raw HTTP API endpoints (e.g. webhook receivers, REST endpoints called from outside the app):
+
+```ts
+// src/routes/api/example.ts
+import { createFileRoute } from '@tanstack/react-router';
+import { auth, clerkClient } from '@clerk/tanstack-react-start/server';
+import { json } from '@tanstack/react-start';
+
+export const ServerRoute = createFileRoute('/api/example')({
+  server: {
+    handlers: {
+      GET: async () => {
+        const { isAuthenticated, userId } = await auth();
+        if (!isAuthenticated) {
+          return new Response('Unauthorized', { status: 401 });
+        }
+        const user = await clerkClient().users.getUser(userId);
+        return json({ user });
+      },
+    },
+  },
+});
+```
+
+### Client hooks: `useAuth()` and `useUser()`
+
+Inside React components:
+
+```tsx
+import { useAuth, useUser } from '@clerk/tanstack-react-start';
+
+function ApiCallExample() {
+  const { isLoaded, isSignedIn, userId, getToken } = useAuth();
+
+  const callExternalApi = async () => {
+    const token = await getToken();
+    return fetch('https://api.example.com/data', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  };
+
+  if (!isLoaded) return <div>Loading...</div>;
+  if (!isSignedIn) return <div>Sign in to view</div>;
+  return <button onClick={callExternalApi}>Fetch</button>;
+}
+
+function ProfileExample() {
+  const { isLoaded, isSignedIn, user } = useUser();
+  if (!isLoaded) return <div>Loading...</div>;
+  if (!isSignedIn) return <div>Sign in to view</div>;
+  return <div>Hello, {user.firstName}</div>;
+}
+```
+
+`useAuth()` is light: token + auth state + IDs. Use when you only need to gate UI or get a session token. `useUser()` is heavier: full user object. Use sparingly; prefer fetching server-side via `clerkClient()` and passing through a route loader.
 
 ## --social github,google
 
@@ -175,7 +289,7 @@ Clerk Organizations are first-class. Each `Organization` has Members, Roles, Inv
 Add the switcher anywhere in the shell:
 
 ```tsx
-import { OrganizationSwitcher } from '@clerk/clerk-react';
+import { OrganizationSwitcher, UserButton } from '@clerk/tanstack-react-start';
 
 export function AppHeader() {
   return (
@@ -191,19 +305,20 @@ export function AppHeader() {
 }
 ```
 
-The active org propagates to `auth.orgId` on the server (visible in `requireSession` above). Org-scoped data fetching:
+The active org propagates to the server-side `auth()` return as `orgId` and `orgRole`. Org-scoped data fetching:
 
 ```ts
-const { organizationId } = await requireSession();
-const rows = await db.select().from(merchants).where(eq(merchants.orgId, organizationId));
+const { orgId } = await auth();
+if (!orgId) throw new Response('No active org', { status: 400 });
+const rows = await db.select().from(merchants).where(eq(merchants.orgId, orgId));
 ```
 
 Client-side hooks: `useOrganization()` returns the current org and membership, `useOrganizationList()` for switching, `useUser()` for the user object.
 
-For per-org RBAC, use Clerk's built-in roles (`org:admin`, `org:member`, custom). `auth.orgRole` returns the active member's role, and Clerk's `<Protect>` component gates UI:
+For per-org RBAC, use Clerk's built-in roles (`org:admin`, `org:member`, custom). `auth().orgRole` returns the active member's role, and Clerk's `<Protect>` component gates UI:
 
 ```tsx
-import { Protect } from '@clerk/clerk-react';
+import { Protect } from '@clerk/tanstack-react-start';
 
 <Protect role="org:admin">
   <DangerZone />
@@ -244,71 +359,75 @@ Foreign keys from your domain tables point at `users.id` (the Clerk user ID, not
 ### Webhook route, `src/routes/api/webhooks/clerk.ts`
 
 ```ts
-import { createServerFileRoute } from '@tanstack/react-start/server';
+import { createFileRoute } from '@tanstack/react-router';
 import { Webhook } from 'svix';
 import { db } from '@/db';
 import { users, organizations } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-export const ServerRoute = createServerFileRoute('/api/webhooks/clerk').methods({
-  POST: async ({ request, context }) => {
-    const env = context.cloudflare.env;
-    const svixId = request.headers.get('svix-id');
-    const svixTimestamp = request.headers.get('svix-timestamp');
-    const svixSignature = request.headers.get('svix-signature');
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      return new Response('Missing svix headers', { status: 400 });
-    }
+export const ServerRoute = createFileRoute('/api/webhooks/clerk')({
+  server: {
+    handlers: {
+      POST: async ({ request, context }) => {
+        const env = context.cloudflare.env;
+        const svixId = request.headers.get('svix-id');
+        const svixTimestamp = request.headers.get('svix-timestamp');
+        const svixSignature = request.headers.get('svix-signature');
+        if (!svixId || !svixTimestamp || !svixSignature) {
+          return new Response('Missing svix headers', { status: 400 });
+        }
 
-    const body = await request.text();
-    const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
-    let event;
-    try {
-      event = wh.verify(body, {
-        'svix-id': svixId,
-        'svix-timestamp': svixTimestamp,
-        'svix-signature': svixSignature,
-      }) as { type: string; data: any };
-    } catch {
-      return new Response('Bad signature', { status: 400 });
-    }
+        const body = await request.text();
+        const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
+        let event: { type: string; data: any };
+        try {
+          event = wh.verify(body, {
+            'svix-id': svixId,
+            'svix-timestamp': svixTimestamp,
+            'svix-signature': svixSignature,
+          }) as { type: string; data: any };
+        } catch {
+          return new Response('Bad signature', { status: 400 });
+        }
 
-    switch (event.type) {
-      case 'user.created':
-      case 'user.updated':
-        await db.insert(users).values({
-          id: event.data.id,
-          email: event.data.email_addresses[0]?.email_address ?? '',
-          firstName: event.data.first_name,
-          lastName: event.data.last_name,
-          imageUrl: event.data.image_url,
-        }).onConflictDoUpdate({
-          target: users.id,
-          set: {
-            email: event.data.email_addresses[0]?.email_address ?? '',
-            firstName: event.data.first_name,
-            lastName: event.data.last_name,
-            imageUrl: event.data.image_url,
-            updatedAt: new Date(),
-          },
-        });
-        break;
-      case 'user.deleted':
-        await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, event.data.id));
-        break;
-      case 'organization.created':
-      case 'organization.updated':
-        await db.insert(organizations).values({
-          id: event.data.id,
-          name: event.data.name,
-          slug: event.data.slug,
-        }).onConflictDoUpdate({
-          target: organizations.id,
-          set: { name: event.data.name, slug: event.data.slug },
-        });
-        break;
-    }
-    return new Response('ok');
+        switch (event.type) {
+          case 'user.created':
+          case 'user.updated':
+            await db.insert(users).values({
+              id: event.data.id,
+              email: event.data.email_addresses[0]?.email_address ?? '',
+              firstName: event.data.first_name,
+              lastName: event.data.last_name,
+              imageUrl: event.data.image_url,
+            }).onConflictDoUpdate({
+              target: users.id,
+              set: {
+                email: event.data.email_addresses[0]?.email_address ?? '',
+                firstName: event.data.first_name,
+                lastName: event.data.last_name,
+                imageUrl: event.data.image_url,
+                updatedAt: new Date(),
+              },
+            });
+            break;
+          case 'user.deleted':
+            await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, event.data.id));
+            break;
+          case 'organization.created':
+          case 'organization.updated':
+            await db.insert(organizations).values({
+              id: event.data.id,
+              name: event.data.name,
+              slug: event.data.slug,
+            }).onConflictDoUpdate({
+              target: organizations.id,
+              set: { name: event.data.name, slug: event.data.slug },
+            });
+            break;
+        }
+        return new Response('ok');
+      },
+    },
   },
 });
 ```
@@ -334,6 +453,8 @@ Non-tech partners can be invited as Team Members under Organization Settings, wi
 | `CLERK_PUBLISHABLE_KEY` | `.dev.vars` + wrangler secret | Clerk dashboard, API Keys (separate test + live) |
 | `CLERK_SECRET_KEY` | `.dev.vars` + wrangler secret | Clerk dashboard, API Keys |
 | `CLERK_WEBHOOK_SECRET` | wrangler secret (only after add-webhook) | Clerk dashboard, Webhooks endpoint detail |
+
+No `VITE_` prefix; the new `@clerk/tanstack-react-start` package handles client-side exposure internally.
 
 ## Free tier and pricing
 
@@ -366,7 +487,7 @@ Plan one engineer-week and a week of soft migration window. Same shape as the Wo
 
 ## Safety
 
-- Never put `CLERK_SECRET_KEY` or `CLERK_WEBHOOK_SECRET` in `~/.claude/.env`. Per-app secrets only. A leaked secret key lets anyone forge sessions for that one app.
+- Never put `CLERK_SECRET_KEY` or `CLERK_WEBHOOK_SECRET` in a committed `.env`. Per-app secrets only. A leaked secret key lets anyone forge sessions for that one app.
 - `CLERK_PUBLISHABLE_KEY` IS safe to ship to browsers (it is the bundle's identifier for which Clerk app to talk to), but treat it as per-app config rather than a global token.
 - Webhook handlers must verify the svix signature before trusting the payload. The example above does this. Skipping the check lets anyone spoof user.deleted.
 - The Clerk dashboard's "Convert test instance to production" is one-way. Use a fresh production instance from day one for any app you intend to ship; do not promote test data.
@@ -379,5 +500,5 @@ Plan one engineer-week and a week of soft migration window. Same shape as the Wo
 - `/ro:stripe` when wiring payments (Stripe customers are linked to Clerk user IDs via `metadata.clerk_user_id`)
 - `/ro:new-tanstack-app --auth` to scaffold a new app with Clerk pre-wired (default)
 - `/ro:cf-ship` to ship after wiring
-- Clerk docs: https://clerk.com/docs, use context7 (`/clerk/clerk-docs`) for current syntax
+- Clerk TanStack Start docs: https://clerk.com/docs/tanstack-react-start, especially the user-data reading guide at /guides/users/reading
 - Comparison page: `llm-wiki-research/wiki/comparisons/auth-three-way-deep-dive.md`
