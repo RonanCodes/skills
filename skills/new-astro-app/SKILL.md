@@ -35,7 +35,7 @@ Sub-flags map to the same dispatched sub-skills as the TanStack orchestrator. Se
 ## Prerequisites
 
 - Node ≥22, pnpm ≥10
-- `~/.claude/.env` (or active context via `ro context use <name>`) populated with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. If unset, run `/ro:cloudflare-setup` first.
+- A populated credential context with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The skill sources via `$(ro context env)`, so context resolves automatically from a `.ro-context` file at the repo root (cleanest), a cwd-glob rule in `~/.claude/contexts.json`, or a manual `ro context use <name>` override. If credentials are missing, run `/ro:cloudflare-setup` first.
 - For `--sentry`: `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` (use `sntrys_` org-scoped token in CI; `sntryu_` user token for project create)
 - For `--posthog`: `POSTHOG_PERSONAL_API_KEY` (`phx_` admin), region host
 

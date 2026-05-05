@@ -185,7 +185,7 @@ curl -sX POST "https://api.porkbun.com/api/json/v3/domain/updateNs/$DOMAIN" \
 End-to-end: create the Cloudflare zone via API, then push the per-zone nameservers to Porkbun. Requires `CLOUDFLARE_API_TOKEN_ZONE_CREATE` (the *account-owned* token — user tokens cannot create zones). If it's not set, stop and point at `/ro:cloudflare-setup`.
 
 ```bash
-source ~/.claude/.env
+source "$(ro context env)"
 
 # 1. Create the zone
 ZONE_JSON=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones" \

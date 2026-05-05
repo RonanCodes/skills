@@ -61,7 +61,7 @@ The `cfat_` vs `cfut_` prefix is the fastest way to tell them apart when reading
 ### 1. Pre-check
 
 ```bash
-source ~/.claude/.env 2>/dev/null
+source "$(ro context env)" 2>/dev/null
 echo "ZONE_CREATE:  ${CLOUDFLARE_API_TOKEN_ZONE_CREATE:+set}${CLOUDFLARE_API_TOKEN_ZONE_CREATE:-missing}"
 echo "ADMIN:        ${CLOUDFLARE_API_TOKEN_ADMIN:+set}${CLOUDFLARE_API_TOKEN_ADMIN:-missing}"
 echo "ACCOUNT_ID:   ${CLOUDFLARE_ACCOUNT_ID:+set}${CLOUDFLARE_ACCOUNT_ID:-missing}"
@@ -108,7 +108,7 @@ echo 'CLOUDFLARE_ACCOUNT_ID=<account-id>' >> ~/.claude/.env
 Verify it works with an authenticated call (account-owned tokens do *not* work against `/user/tokens/verify`, so test with a real call):
 
 ```bash
-source ~/.claude/.env
+source "$(ro context env)"
 curl -s "https://api.cloudflare.com/client/v4/zones?per_page=1" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN_ZONE_CREATE" \
   | jq '{success, errors}'
@@ -144,7 +144,7 @@ echo 'CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN_ADMIN' >> ~/.claude/.env
 Verify:
 
 ```bash
-source ~/.claude/.env
+source "$(ro context env)"
 curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN_ADMIN" \
   | jq '{success, status: .result.status}'
@@ -168,7 +168,7 @@ echo "CLOUDFLARE_ZONE_ID=$ZONE_ID" >> ~/.claude/.env
 Run both tokens through a minimal set of calls to prove each scope:
 
 ```bash
-source ~/.claude/.env
+source "$(ro context env)"
 
 echo "--- account-owned token (zone create) ---"
 curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" \
@@ -224,7 +224,7 @@ Then restart at step 2.
 After this skill runs, `~/.claude/.env` is the source of truth for every Cloudflare token. Other skills (`/ro:cf-ship`, `/ro:cloudflare-dns`, `/ro:migrate-to-tanstack`, `/ro:new-tanstack-app`, `stack-audit`) **must** source from there before asking the user for a token. Pattern:
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 unset GH_TOKEN GITHUB_TOKEN  # ~/.claude/.env's GITHUB_TOKEN shadows gh CLI keychain — must unset
 ```
 

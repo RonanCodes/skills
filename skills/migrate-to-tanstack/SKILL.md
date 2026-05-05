@@ -35,7 +35,7 @@ grep -iE "^(CLOUDFLARE_|SENTRY_|POSTHOG_|UPTIMEROBOT_|NEON_|KNOCK_|ANTHROPIC_|OP
 When sourcing into the shell:
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 unset GH_TOKEN GITHUB_TOKEN   # required — see "GITHUB_TOKEN gotcha" in new-tanstack-app §13
 ```
 

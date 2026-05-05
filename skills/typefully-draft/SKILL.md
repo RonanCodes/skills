@@ -81,7 +81,7 @@ Authorization: Bearer <your-key>
 ### 1. Verify creds
 
 ```bash
-set -a && source ~/.claude/.env && set +a
+set -a && source "$(ro context env)" && set +a
 [ -n "$TYPEFULLY_API_KEY" ] && [ -n "$TYPEFULLY_SOCIAL_SET_ID" ] || {
   echo "Missing TYPEFULLY_API_KEY or TYPEFULLY_SOCIAL_SET_ID in ~/.claude/.env" >&2
   exit 1
