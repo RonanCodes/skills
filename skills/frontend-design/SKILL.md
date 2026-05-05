@@ -26,7 +26,7 @@ Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
 
 ## Design intake
 
-For greenfield UI mockups, **Claude Design** is the primary surface for direction-setting. **v0** (vercel.com/v0) is the second-opinion source when a layout needs cross-checking. Once a direction is locked, bring the Claude Design link (or v0 export) into this skill as a reference pin and build from it inside the repo with shadcn/ui + Tailwind. For marketing imagery (OG cards, hero illustrations, social), use `/ro:generate-image` (Gemini Nano Banana 2), not GPT image gen.
+For greenfield UI mockups, **Claude Design** is the primary surface for direction-setting. **Pencil** ([pencil.dev](https://pencil.dev/)) is the second-opinion source when a layout needs cross-checking. Once a direction is locked, bring the Claude Design link (or Pencil export) into this skill as a reference pin and build from it inside the repo with shadcn/ui + Tailwind. For marketing imagery (OG cards, hero illustrations, social), use `/ro:generate-image` (Gemini Nano Banana 2), not GPT image gen.
 
 ## Frontend Aesthetics Guidelines
 
