@@ -29,7 +29,7 @@ npx skills add RonanCodes/ronan-skills/skills/commit -g
 
 ## Configuration
 
-Skills that need API keys read from a shared env file via the `ro` meta-CLI (`bin/ro`, symlinked to `~/.local/bin/ro`).
+Skills that need API keys read from a shared env file via the `ro` meta-CLI (lives in `skills/context/scripts/ro`, symlinked into `~/.local/bin/ro` so it's invokable as `ro` from any terminal). See `/ro:context` for the full reference.
 
 ### Single context (most users)
 
