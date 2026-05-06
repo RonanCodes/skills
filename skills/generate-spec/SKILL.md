@@ -158,6 +158,23 @@ What success looks like.
 
 EARS format: `WHEN <trigger> THE system SHALL <behaviour>`. One row per acceptance criterion so each is independently testable.
 
+### Web-app baseline checklist (must-have stories)
+
+Any spec for an app that has a web UI, an authenticated user, or an HTTP API MUST include the following stories. If you skip one, the gap will surface mid-build as a manual fix-up. Mark "N/A — <reason>" inline if a story genuinely doesn't apply (e.g. CLI-only tool: skip auth UI; no public API: skip API-docs).
+
+| Story | Why it's mandatory |
+|---|---|
+| **US-000 Bootstrap** | Repo scaffold, quality stack, first green deploy. Tracer bullet that every later story rides. Must include CI secrets bootstrap AND a runtime health-probe assertion against the deployed URL, not just a green-CI check. |
+| **Auth UI (sign-in + sign-out)** | Explicit acceptance criterion: "WHEN the user clicks the sign-out control on any authenticated page THE system SHALL end the session and redirect to /". Don't bury sign-out under "auth wired up"; it's a user-visible feature with its own e2e. |
+| **Lazy auth mirror** | If auth uses a webhook to sync users into your DB (Clerk, Auth0, etc.), include a story for the cold-start path: "WHEN an authenticated request arrives before the user.created webhook has fired THE system SHALL mirror the user on demand and proceed." Otherwise sign-up users hit "user not found" until the webhook lands. |
+| **API discoverability** | OpenAPI 3.1 doc served at `/api/openapi/json` (or equivalent) AND a rendered viewer (Scalar / Swagger UI / Redoc) at `/api-docs`. Acceptance: both routes return 200 in production. |
+| **API client collection** | Bruno (or Postman) collection committed in the repo, one request per public route, env files for local + prod. Acceptance: at minimum the health/openapi requests run green in CLI-mode. |
+| **Integration test layer** | Tests that exercise route handlers + DB with in-memory or test-container DB (not mocks). Acceptance: at least one integration test per data-mutating endpoint. Don't rely on e2e to cover data-layer correctness. |
+| **CI env injection** | The CI workflow MUST materialise the dev-server's env file (`.dev.vars`, `.env.local`, etc.) from CI secrets before any job runs the dev server. Document each required key explicitly. Skipping this is the #1 cause of "works locally, red in CI" with frameworks like TanStack Start, Next.js, Wrangler. |
+| **Deployment health probe** | Each shipping story's DoD includes: "the deployed URL returns 200 from `/api/health` AND the new route is reachable." Don't trust green CI alone; verify against the actual deployed instance. |
+
+These exist because every greenfield web-app spec we ship rediscovers them. Inline them by default; remove only on explicit justification.
+
 ### US-001 — <short title>
 
 **As a** <role>, **I want** <capability>, **so that** <benefit>.

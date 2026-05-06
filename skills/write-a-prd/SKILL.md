@@ -109,3 +109,18 @@ Convert the approved plan into `.ralph/prd.json` using the same format as quick 
 - **Use "As a X, I want Y so that Z" format** for story descriptions.
 - **IDs are sequential:** US-001, US-002, US-003, etc.
 - **Priority matches order:** story with priority 1 is built first.
+
+## Web-app baseline checklist
+
+When the PRD describes an app with a web UI, an authenticated user, or an HTTP API, you MUST emit the following stories (or mark "N/A — <reason>" if genuinely skippable). Otherwise the gap surfaces mid-build:
+
+1. **US-000 Bootstrap** — repo + scaffold + quality stack + first green deploy. DoD includes a health probe against the deployed URL, not just green CI.
+2. **Sign-out** — explicit "WHEN user clicks sign-out THE system SHALL end the session and redirect to /". Sign-out is a user-visible feature; it gets its own story even if the auth provider gives you a button for free.
+3. **Lazy auth-mirror** — if auth uses webhooks (Clerk / Auth0 / etc.), include a story for the cold-start path before the webhook fires.
+4. **API discoverability** — OpenAPI doc at `/api/openapi/json` + rendered viewer (Scalar / Swagger / Redoc) at `/api-docs`.
+5. **API client collection** — Bruno (or Postman) committed with one request per public route, env files for local + prod.
+6. **Integration test layer** — handler-level tests with an in-memory or test-container DB; at minimum one per data-mutating endpoint.
+7. **CI env injection** — the workflow materialises the dev-server env file (`.dev.vars`, `.env.local`) from CI secrets before any job runs the dev server.
+8. **Per-story deploy verification** — each shipping story's DoD: the deployed URL returns 200 from `/api/health` AND the new route is reachable. Green CI alone is not enough.
+
+Ask the user up-front "is this a web app, a CLI, or a library?" — if web, run through the checklist before generating prd.json.

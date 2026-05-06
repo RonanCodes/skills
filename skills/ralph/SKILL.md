@@ -197,6 +197,23 @@ What we changed in the skill (this version):
 - `Lessons learned` section (this one) so future runs inherit the wisdom
 - Recommend running `/spec-to-repo` with its full pre-flight first, before `/ralph`, to catch revoked tokens etc. before the autonomous loop starts
 
+### 2026-05-06: Dataforce Phase 1 morning fix-up — baseline-checklist gap
+
+After the Phase 1 build, the user surfaced six gaps that should have been stories from day one but were one-liner mentions in ADRs the agent didn't translate to user stories:
+
+- Logout button on every authenticated page
+- OpenAPI 3.1 spec served + Scalar viewer at /api-docs
+- Bruno collection committed for every public route
+- Vitest integration tests against an in-memory DB
+- Lazy auth-mirror for the cold-start-before-webhook path
+- CI workflow writing `.dev.vars` from secrets so the e2e dev-server boots
+
+Each became a follow-up PR. Root cause: the spec mentioned them in ADRs / DoD bullets, but didn't emit them as US-* stories, so Ralph never had a story-shaped target to build against.
+
+Mitigation upstream: `/generate-spec` and `/write-a-prd` now ship a **Web-app baseline checklist** (sign-in/sign-out UI, lazy auth-mirror, API discoverability, API client collection, integration test layer, CI env injection, per-story deploy verification). Any web-app spec missing one of these gets called out before story generation. See [[ideal-tech-setup#Greenfield Spec Baseline (must-have stories)]] for the canonical list.
+
+What Ralph should do now: **before iterating any spec**, scan US-* titles for the baseline checklist. If any are missing in a web-app spec, stop and ask the user via AskUserQuestion whether to add them or mark "N/A — <reason>" before starting.
+
 ## PRD File Format (prd.json or prd-<name>.json)
 
 ```json
