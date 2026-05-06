@@ -122,5 +122,7 @@ When the PRD describes an app with a web UI, an authenticated user, or an HTTP A
 6. **Integration test layer** — handler-level tests with an in-memory or test-container DB; at minimum one per data-mutating endpoint.
 7. **CI env injection** — the workflow materialises the dev-server env file (`.dev.vars`, `.env.local`) from CI secrets before any job runs the dev server.
 8. **Per-story deploy verification** — each shipping story's DoD: the deployed URL returns 200 from `/api/health` AND the new route is reachable. Green CI alone is not enough.
+9. **Lazy reconciliation for external state** — if you mirror state from an external service (Nango, Stripe, Clerk, GitHub), the read endpoint reconciles from the source on every request. Webhook = fast path; reconcile-on-read = correct path.
+10. **Onboarding checklist** — when relevant (B2B SaaS with multi-step activation), replace empty-state Home with a gamified checklist driven by server-observed events. See `/onboarding-flow` skill + `[[onboarding-checklist-ux]]` canon.
 
 Ask the user up-front "is this a web app, a CLI, or a library?" — if web, run through the checklist before generating prd.json.
