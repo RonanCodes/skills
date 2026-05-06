@@ -226,7 +226,21 @@ Mitigation upstream: `/generate-spec` and `/write-a-prd` now ship a **Web-app ba
 
 What Ralph should do now: **before iterating any spec**, scan US-* titles for the baseline checklist. If any are missing in a web-app spec, stop and ask the user via AskUserQuestion whether to add them or mark "N/A — <reason>" before starting.
 
-## PRD File Format (prd.json or prd-<name>.json)
+### 2026-05-06 (afternoon): Dataforce Phase 2 — subagent unavailability + status-field gap
+
+Phase 2 (11 stories) ran in `--mode fresh` but the Agent/Task tool was NOT available inside the spawned Ralph subagent's context, so the per-story-fresh-subagent pattern collapsed into single-agent execution. Result: 6 of 11 stories shipped (the smaller ones), 3 deferred (UI-heavy: onboarding checklist Home, OAuth device flow, Connections polish), 2 blocked-on-human.
+
+What we changed in the skill (this version):
+
+- **Tool availability check**: at start-of-loop, Ralph MUST verify the Agent tool is callable before claiming `--mode fresh`. If unavailable, downgrade automatically to `--mode batched` AND surface a warning, OR refuse to start if the user explicitly asked for fresh and the tool is missing. Don't silently single-agent through 11 stories.
+- **Story `status` field**: PRD JSON now uses `status: "passed" | "deferred" | "blocked-on-human" | "blocked-on-code" | "not-started"` instead of bare `passes: bool`. `passes:bool` stays as a derived view (passed === true) for back-compat. Free-text `notes` is for the *why*, not for distinguishing the *kind* of incomplete.
+- **Drizzle journal cleanup**: when discarding a generated migration mid-iteration, edit `drizzle/meta/_journal.json` to drop the entry too. Otherwise the next `db:generate` numbers from the stale max idx.
+- **Pre-format pass**: at start-of-loop, run `pnpm format:write` once and commit any unrelated touch-ups as a separate `🔧 chore:` commit. Otherwise per-story PRs drag in unrelated whitespace via lint-staged.
+- **Deployed-route e2e helper**: stories with a "deployed URL returns 200" DoD criterion need a Playwright config that boots a signed-in browser context against prod (or a session-cookie helper). Without it, "verify deployed" defaults to a curl probe, which doesn't cover routes behind auth. See `[[ideal-tech-setup]]` § Greenfield Spec Baseline for the canonical pattern.
+
+These mitigations apply going forward; Phase 3 PRD must reflect them.
+
+## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
 ```json
 {
@@ -243,12 +257,31 @@ What Ralph should do now: **before iterating any spec**, scan US-* titles for th
         "Criterion 2"
       ],
       "priority": 1,
+      "status": "not-started",
       "passes": false,
       "notes": ""
     }
   ]
 }
 ```
+
+### Story `status` values
+
+| Value | Meaning | Implies `passes` |
+|---|---|---|
+| `not-started` | Hasn't been picked up yet | `false` |
+| `in-progress` | Currently being worked on (only one story at a time per PRD) | `false` |
+| `passed` | All DoD criteria met, PR merged, deploy verified | `true` |
+| `deferred` | Skipped for this run because too big for one context window OR depends on a deferred story; the next Ralph run should pick it up | `false` |
+| `blocked-on-human` | Needs a manual dashboard step (OAuth registration, Nango webhook URL paste, etc.); Ralph can't complete without operator action | `false` |
+| `blocked-on-code` | Needs a fix in another part of the codebase that's outside this PRD's scope; should become its own story in the next phase | `false` |
+
+`passes: bool` is kept as a derived field for back-compat with older readers. `status` is canonical going forward.
+
+When Ralph hits `deferred` or `blocked-*`, it MUST:
+1. Write a `notes` line explaining the reason (one sentence).
+2. Append the same line to the progress sidecar: `<ISO> US-NNN <STATUS> — <reason>`.
+3. Continue to the next priority story; don't get stuck retrying.
 
 ## Story Size Rule
 
