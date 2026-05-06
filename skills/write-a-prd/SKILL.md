@@ -125,5 +125,6 @@ When the PRD describes an app with a web UI, an authenticated user, or an HTTP A
 9. **Lazy reconciliation for external state** — if you mirror state from an external service (Nango, Stripe, Clerk, GitHub), the read endpoint reconciles from the source on every request. Webhook = fast path; reconcile-on-read = correct path.
 10. **Onboarding checklist** — when relevant (B2B SaaS with multi-step activation), replace empty-state Home with a gamified checklist driven by server-observed events. See `/onboarding-flow` skill + `[[onboarding-checklist-ux]]` canon.
 11. **Share assets (favicon + app icons + OG + Twitter card)** — favicon set (.ico, .svg, apple-touch), PWA manifest icons, static OG fallback, dynamic per-URL OG route, OpenGraph + Twitter card meta tags, JSON-LD application schema. Default favicons + missing OG previews look broken when the app is shared. See `/share-assets` skill.
+12. **Worker bundle-size budget** — If deploying to Cloudflare Workers, every story DoD includes "wrangler deploy --dry-run target=production passes". Free-tier ceiling 3 MiB gzipped, paid 10 MiB. wasm + inlined fonts/images are the usual culprits.
 
 Ask the user up-front "is this a web app, a CLI, or a library?" — if web, run through the checklist before generating prd.json.
