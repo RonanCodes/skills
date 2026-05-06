@@ -17,7 +17,7 @@ Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration
 /ralph --mode fresh                        # Loop indefinitely; each story spawns a NEW subagent (recommended for autonomous overnight runs)
 /ralph --mode fresh --max-iterations 5     # Cap at 5 fresh-context iterations
 /ralph --mode batched                      # ALL stories in ONE continuous context (faster, riskier; opt-in only)
-/ralph --prd phase-2a                      # Use .ralph/prd-phase-2a.json
+/ralph --prd phase-2-onboarding-2026-05-06 # Use .ralph/phase-2-onboarding-2026-05-06.json (recommended naming for multi-phase projects)
 /ralph --plan-only                         # Show what would be done next (no changes)
 ```
 
@@ -73,8 +73,20 @@ To verify post-merge that the rule held: `gh pr list --state merged --search "(U
 
 The `--prd <name>` flag selects which PRD file to work from:
 
-- `--prd <name>` → reads `.ralph/prd-<name>.json` and writes progress to `.ralph/progress-<name>.txt`
+- `--prd <name>` → reads `.ralph/<name>.json` and writes progress to `.ralph/<name>.progress.txt`
 - no flag → reads `.ralph/prd.json` and writes progress to `.ralph/progress.txt` (legacy / single-PRD projects)
+
+### PRD naming convention (recommended for multi-phase projects)
+
+When generating a new PRD for a phased project, use the form:
+
+    phase-<N>-<slug>-<YYYY-MM-DD>
+
+so the file is `.ralph/phase-2-onboarding-2026-05-06.json` and the progress file is `.ralph/phase-2-onboarding-2026-05-06.progress.txt`. Sortable by phase, dated for traceability, slugged for readability. Maintain `.ralph/index.md` (one row per PRD: file, status, started-at, finished-at, PR count, summary). Append to the index on every new PRD; update the row on completion.
+
+The `--prd` flag accepts the bare name with or without the `.json` extension; the skill resolves to `.ralph/<name>.json` and `.ralph/<name>.progress.txt` either way.
+
+For one-off / unphased projects (the legacy default), `prd.json` + `progress.txt` still work — don't force the phase convention on a small repo that doesn't need it. Apply the phase form when there's a real Phase 1 / Phase 2 / Phase 3 arc.
 
 This lets one repo drive multiple concurrent phases/initiatives without progress-file collisions. Each named PRD is independent: its own story list, its own branchName, its own progress log.
 
@@ -131,7 +143,7 @@ In `--mode batched`, multiple stories share one context. This is the explicit op
 
 ## Progress Report Format
 
-APPEND to the matching progress file (never replace). The progress file is `.ralph/progress-<name>.txt` when `--prd <name>` is used, otherwise `.ralph/progress.txt`:
+APPEND to the matching progress file (never replace). The progress file is `.ralph/<name>.progress.txt` when `--prd <name>` is used (e.g. `.ralph/phase-2-onboarding-2026-05-06.progress.txt`), otherwise `.ralph/progress.txt`:
 
 ```
 ## [Date/Time] - [Story ID]: [Story Title]
