@@ -124,5 +124,6 @@ When the PRD describes an app with a web UI, an authenticated user, or an HTTP A
 8. **Per-story deploy verification** — each shipping story's DoD: the deployed URL returns 200 from `/api/health` AND the new route is reachable. Green CI alone is not enough.
 9. **Lazy reconciliation for external state** — if you mirror state from an external service (Nango, Stripe, Clerk, GitHub), the read endpoint reconciles from the source on every request. Webhook = fast path; reconcile-on-read = correct path.
 10. **Onboarding checklist** — when relevant (B2B SaaS with multi-step activation), replace empty-state Home with a gamified checklist driven by server-observed events. See `/onboarding-flow` skill + `[[onboarding-checklist-ux]]` canon.
+11. **Share assets (favicon + app icons + OG + Twitter card)** — favicon set (.ico, .svg, apple-touch), PWA manifest icons, static OG fallback, dynamic per-URL OG route, OpenGraph + Twitter card meta tags, JSON-LD application schema. Default favicons + missing OG previews look broken when the app is shared. See `/share-assets` skill.
 
 Ask the user up-front "is this a web app, a CLI, or a library?" — if web, run through the checklist before generating prd.json.
