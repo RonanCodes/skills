@@ -1,23 +1,73 @@
 ---
 name: ralph
-description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Picks the highest priority incomplete story, implements it, validates, commits, and updates progress. Supports named PRDs (e.g. one per project phase) via --prd <name>. Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
+description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged), validates, and updates progress. Supports named PRDs (e.g. one per project phase) via --prd <name>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
 category: development
-argument-hint: [--prd <name>] [--plan-only | --single | --all]
-allowed-tools: Bash(git *) Read Write Edit Glob Grep
+argument-hint: [--prd <name>] [--mode fresh|batched|single] [--plan-only] [--max-iterations <N>]
+allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 ---
 
 # Ralph Loop
 
-Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/`, implements it, validates, commits, and updates progress.
+Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/`, implements it in a **fresh isolated context** by default, opens ONE PR per story, validates, commits, and updates progress.
 
 ## Quick Start
 
 ```
-/ralph                        # Run one iteration from .ralph/prd.json
-/ralph --prd phase-2a         # Run one iteration from .ralph/prd-phase-2a.json
-/ralph --prd phase-2a --all   # Run every remaining story in that PRD
-/ralph --plan-only            # Show what would be done next (no changes)
+/ralph                                     # One story, fresh context, then stop (default mode=single)
+/ralph --mode fresh                        # Loop indefinitely; each story spawns a NEW subagent (recommended for autonomous overnight runs)
+/ralph --mode fresh --max-iterations 5     # Cap at 5 fresh-context iterations
+/ralph --mode batched                      # ALL stories in ONE continuous context (faster, riskier; opt-in only)
+/ralph --prd phase-2a                      # Use .ralph/prd-phase-2a.json
+/ralph --plan-only                         # Show what would be done next (no changes)
 ```
+
+## Modes
+
+The `--mode` flag is the most important decision. Pick the one that matches your risk tolerance:
+
+| Mode | One iteration = | Use when | Risk |
+|---|---|---|---|
+| `single` (default) | One story, one fresh context, stop | Interactive dev; you want to review each story before kicking off the next | Low; you're in the loop |
+| `fresh` | One story, one fresh subagent (Agent tool with a clean context). Loops until all stories pass or `--max-iterations` hit | Overnight autonomous runs, long-running PRD execution | Medium; subagent budgets are bounded but each story starts clean |
+| `batched` | Many stories, ONE continuous context | You explicitly want speed over isolation, AND the stories share so much context that re-loading per story would be wasteful | Higher; context drift compounds across stories. Easy to silently relax PR-per-story. Use ONLY with explicit user permission. |
+| `unbounded` | Same as `fresh` but no `--max-iterations` cap | "Run all night, ship as much as you can" | Same as `fresh` plus the wall-clock-budget concern |
+
+**Critical rule**: `batched` mode requires explicit user opt-in via the `--mode batched` flag. It must NEVER be the silent default. The night-shift run on 2026-05-06 silently became batched-mode because the agent decided one-context-many-stories was easier; that's exactly what this rule prevents.
+
+## Per-story fresh context (recommended)
+
+When `--mode fresh` is selected, each iteration MUST:
+
+1. Read `.ralph/prd.json` to find the next unfinished story
+2. Read `.ralph/patterns.md` if it exists (carries cross-iteration learnings)
+3. **Spawn a NEW subagent via the Agent tool** with `subagent_type: general-purpose` (or a more specialised type if appropriate)
+4. The subagent's prompt is self-contained: includes the story's full EARS criteria, design ref, Definition of Done, and a copy of `.ralph/patterns.md`
+5. The subagent does the work end-to-end: implement, test, commit, push, open PR, watch CI green, squash-merge, mark `passes: true`, append to `progress.txt`
+6. The subagent returns a one-line summary
+7. The parent loop reads the summary, then spawns the NEXT story's subagent (if more remain and within `--max-iterations`)
+
+This gives true context isolation: a mistake in story N can't compound into story N+1's implementation.
+
+## PR-per-story (HARD GUARD)
+
+Every story MUST be a single PR. No batching. The acceptance bar:
+
+- Branch name format: `ralph/us-NNN-<slug>` (one US-NNN per branch)
+- PR title format: `<emoji> <type>(US-NNN): <title>` with EXACTLY ONE US-NNN id
+- PR body MUST start with the story's full EARS criteria
+- Squash-merge ONLY (so the merged commit is `<emoji> <type>(US-NNN): <title> (#<pr>)`)
+
+If the implementing agent finds itself wanting to bundle multiple stories into one PR, it must STOP and surface the situation back to the user via `AskUserQuestion`:
+
+```
+"Story US-NNN naturally bundles with US-(NNN+1) because [reason].
+Bundle into one PR (and split the story IDs in the title), or
+keep as two PRs?"
+```
+
+The default answer is "keep as two PRs". The agent NEVER bundles silently.
+
+To verify post-merge that the rule held: `gh pr list --state merged --search "(US-" --json title` should show exactly one US-NNN per row. The `/lint --artifacts` skill (when run on a Ralph-produced repo) flags PRs that bundle.
 
 ## PRD File Resolution
 
@@ -61,15 +111,23 @@ Don't re-prompt once the file exists. To change policy later, edit `.ralph/.giti
 0. Ensure `.ralph/.gitignore-policy` exists (see "Gitignore Policy" above); if not, prompt once and write it before touching any PRD
 1. Resolve PRD file from `--prd` flag (or default `.ralph/prd.json`) — find the highest priority story where `passes: false`
 2. Read the matching progress file (and `.ralph/patterns.md` if present) — check Codebase Patterns section for learnings from prior iterations
-3. Implement the story
-4. Validate (typecheck, lint, test — whatever the project requires)
-5. Commit with message: `feat: [Story ID] - [Story Title]`
-6. Update the PRD file — set `passes: true` for completed story
-7. Append progress to the matching progress file with learnings
+3. **In `--mode fresh`: spawn a fresh subagent for this story.** In `--mode batched`: continue in current context. In `--mode single`: do this story then stop.
+4. Implement the story against the EARS acceptance criteria
+5. Validate (typecheck, lint, test — whatever the project requires; respect Definition of Done if present in the spec)
+6. **Open ONE PR for this story** (no batching; see PR-per-story HARD GUARD above)
+7. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`
+8. Wait for CI green; auto-merge via squash
+9. Update the PRD file — set `passes: true` for completed story
+10. Append progress to the matching progress file with learnings
 
-## One Story Per Iteration
+## One Story Per Iteration (in fresh / single modes)
 
-Work on ONE story at a time. After completing it, stop. The next `/ralph` invocation (or loop iteration) picks up the next story with a fresh context.
+In `--mode fresh` and `--mode single`, work on ONE story per iteration. After completing it:
+
+- `single`: stop. Next `/ralph` invocation picks up the next story.
+- `fresh`: spawn a NEW subagent for the next story (until `--max-iterations` or all stories pass).
+
+In `--mode batched`, multiple stories share one context. This is the explicit opt-in for situations where the user accepts the risk in exchange for speed.
 
 ## Progress Report Format
 
@@ -105,11 +163,39 @@ If `.ralph/patterns.md` does not exist, create it on first use. Legacy projects 
 
 After completing a story, check if ALL stories have `passes: true`.
 
-If ALL complete: report "All tasks complete!" and stop.
+| Mode | When to stop |
+|---|---|
+| `single` | After 1 story (always) |
+| `fresh` | When all stories pass OR `--max-iterations` hit OR a story fails after 3 retries |
+| `batched` | When all stories pass OR a hard error |
+| `unbounded` | When all stories pass OR a hard error (no iteration cap) |
 
-If more remain and `--all` flag: continue to next story.
+Report "All tasks complete!" and stop on success. On hard error, report the failed story + reason and exit; the user can resume with another `/ralph` invocation.
 
-If more remain and no `--all` flag: stop after the single story (default).
+## Lessons learned (from real Ralph runs)
+
+This section captures patterns observed in production Ralph runs that future invocations should respect. Add to it after each meaningful run.
+
+### 2026-05-06: Dataforce Phase 1 night shift
+
+Run shape: `--mode batched` (silently, due to skill ambiguity at the time). 17 stories shipped across 6 PRs in 65 minutes via one continuous context.
+
+What went well:
+- High coverage in low wall-clock
+- Real PRs, real CI, real merges
+- Spec-driven autonomy worked: agent rarely needed clarification
+
+What went badly:
+- Silent contract relaxation: PR-per-story collapsed into PR-per-batch (one PR covered 6 stories). User couldn't easily audit individual story implementations afterwards.
+- No fresh-context isolation: assumptions made in early stories compounded into later ones without anyone noticing. Stub-shaped implementations slipped through (Clerk SSR; OAuth device flow).
+- CI green was achieved partly via `continue-on-error: true` on the deploy step. Green-CI signal was misleading.
+- Pre-flight didn't catch a revoked Cloudflare token; agent worked around it instead of stopping.
+
+What we changed in the skill (this version):
+- `--mode` flag with explicit semantics; `batched` requires opt-in; `fresh` is the recommended autonomous mode
+- PR-per-story is now a HARD GUARD with detection + AskUserQuestion if a bundle is tempting
+- `Lessons learned` section (this one) so future runs inherit the wisdom
+- Recommend running `/spec-to-repo` with its full pre-flight first, before `/ralph`, to catch revoked tokens etc. before the autonomous loop starts
 
 ## PRD File Format (prd.json or prd-<name>.json)
 

@@ -35,12 +35,31 @@ If `--scaffold` is omitted, ask via AskUserQuestion. Default recommendation is `
 
 ## Procedure
 
+### Step 0 — Pre-flight (catch credential + access issues BEFORE scaffolding)
+
+Run these checks in order. If any fails, surface the exact problem and stop. Do NOT silently work around credential failures (the night-shift Dataforce run on 2026-05-06 worked around a revoked Cloudflare token by adding `continue-on-error: true` to CI; that's exactly what this pre-flight prevents).
+
+| Check | Command | Pass condition |
+|---|---|---|
+| `gh` is authenticated | `gh auth status` | "Logged in to github.com account ..." |
+| Target GitHub org exists and the user is a member | `gh api /user/orgs --jq '.[].login'` then check the spec's stated org appears in the list | Org login matches spec's `repo` field (case-sensitive on GitHub) |
+| `wrangler` is installed and auth works | `wrangler whoami` | Returns email + account list, NOT "You are not authenticated" |
+| Cloudflare token in env actually works | `curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \| jq .success` | `true` |
+| Cloudflare account ID matches | `curl -s "https://api.cloudflare.com/client/v4/accounts" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \| jq .result[0].id` matches `$CLOUDFLARE_ACCOUNT_ID` | exact match |
+| `pnpm` + `node` + `git` versions | `pnpm -v && node -v && git --version` | All present, node 20+ |
+| Spec env vars all populated | for each env var listed in the spec's GitHub Actions secrets table, check it's set in `~/.claude/.env.<context>` and not empty | All set |
+
+Report the pre-flight as a table to the user. If anything fails, include the EXACT remediation (e.g. "mint a fresh CF token at https://dash.cloudflare.com/profile/api-tokens with scopes X / Y / Z").
+
+This pre-flight takes ~30 seconds and catches the night-shift class of problem before kicking off hours of work.
+
 ### Step 1 — Validate the spec
 
 Read the vault spec. Confirm:
 
 - Frontmatter has `status: accepted`. If `status: draft` or anything else, ask via AskUserQuestion: "Spec status is `<status>`. Graduate anyway?" Default no.
 - Frontmatter `repo` is empty or unset. If already populated, this spec has already graduated; surface the existing repo path and ask whether to abort, re-graduate to a new repo, or refresh the derived PRD only.
+- Frontmatter's stated GitHub org matches one the user belongs to (case-sensitive, e.g. `Simplicity-Labs` not `simplicitylabs`). The night-shift run nearly used the wrong org name because the spec used the lowercase form; pre-flight (step 0) catches this.
 - The User Stories section parses (US-NNN headings with EARS-format acceptance tables). If not, surface the parse error and stop; the spec is not ready.
 
 ### Step 2 — Resolve the target repo
@@ -186,6 +205,8 @@ Next: run /ralph in <repo> to start the tracer-bullet implementation.
 - **EARS rows that aren't in EARS form**: pass them through verbatim and flag a single warning at the end ("3 acceptance criteria are not in EARS form; consider tightening for testability").
 - **Repo name collision** with `~/Dev/ai-projects/<existing>`: don't auto-suffix. Ask explicitly.
 - **No `git` available**: surface and stop. Do not attempt fallback.
+- **Pre-flight failure**: NEVER silently work around. If `wrangler whoami` fails, stop and ask the user to mint a fresh token. If org membership check fails, stop and ask the user to confirm the org name. The autonomous loop must not start with broken credentials; the night-shift Dataforce run shipped CI-green-but-not-actually-deployed code because pre-flight didn't catch a revoked CF token.
+- **GitHub org plan limits**: if the target org is on the free plan and the repo will be private, **branch protection with required-status-checks is not available** (HTTP 403 from `gh api`). Detect this in pre-flight via `gh api /orgs/<org> --jq '.plan.name'` and surface to the user: "The Simplicity-Labs org is on the free plan; branch protection on private repos requires GitHub Team ($4/user/month). Continue with soft enforcement (auto-merge + squash-only + delete-on-merge), or upgrade first?"
 
 ## Style rules for any output
 
