@@ -1,6 +1,6 @@
 ---
-name: respond-as-html
-description: Render the current response (or a specific piece of content under discussion) as a single-file HTML artefact instead of a long Markdown reply. Use whenever the user asks for a "human-readable version", "an artifact", "a shareable page", "an HTML version", "make it pretty", "save that as a page", or similar phrasing. Auto-detects an llm-wiki vault or any repo/folder and writes to `<root>/artifacts/html/<timestamp>-<slug>.html`. Editorial typography baseline with libraries layered in per the decision tree; opens in the user's default browser. Markdown stays the default chat surface; this skill is the explicit promote-to-artefact step.
+name: generate-html-artifact
+description: Generate a single-file HTML artefact from the current response (or a specific piece of content under discussion) instead of a long Markdown reply. Use whenever the user asks for a "human-readable version", "an artifact", "a shareable page", "an HTML version", "make it pretty", "save that as a page", or similar phrasing. Auto-detects an llm-wiki vault or any repo/folder and writes to `<root>/artifacts/html/<timestamp>-<slug>.html`. Editorial typography baseline with libraries layered in per the decision tree; opens in the user's default browser. Markdown stays the default chat surface; this skill is the explicit promote-to-artefact step.
 user-invocable: true
 allowed-tools: Bash(mkdir *) Bash(date *) Bash(open *) Bash(git *) Bash(pwd *) Bash(realpath *) Bash(basename *) Bash(test *) Read Write Glob
 ---
@@ -11,7 +11,7 @@ The artefact will always be opened online. Size does not matter. The question to
 
 The voice lives in the typography and the rhythm. Handcraft those. Libraries handle the visual primitives and the interactive bits where rolling your own would be reinventing wheels.
 
-# Respond as HTML
+# Generate HTML Artefact
 
 Snapshot the current response (or a specific piece of content) as a single-file HTML artefact. Markdown stays the chat default. This skill is the explicit "promote this moment to a real artefact" step.
 
@@ -26,7 +26,7 @@ Fire automatically on intent phrases like:
 - "make it pretty"
 - "make it shareable"
 - "I want to review that properly"
-- explicit `/respond-as-html` (or whatever alias the user types)
+- explicit `/generate-html-artifact` (or whatever alias the user types)
 
 Do NOT fire for short factual replies, code-only edits, or one-line answers. The smell test: would the user open this in a browser tab and read it side-by-side with something else? If yes, fire. If no, leave it in the terminal.
 
@@ -197,7 +197,7 @@ jQuery (legacy), Bootstrap (heavier than Tailwind for the same payoff), full Rea
 
 ## Step 3b: Render the HTML
 
-Start from the editorial baseline at `.claude/skills/respond-as-html/template.html`. Layer the libraries you picked in the decision tree above. The baseline gives you:
+Start from the editorial baseline at `.claude/skills/generate-html-artifact/template.html`. Layer the libraries you picked in the decision tree above. The baseline gives you:
 
 - Serif body type (Iowan Old Style stack) and sans hierarchy (Inter)
 - Light/dark colour scheme respecting `prefers-color-scheme`
