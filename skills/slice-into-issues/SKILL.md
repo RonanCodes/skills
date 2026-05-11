@@ -128,7 +128,7 @@ Wrote N issue files to .ralph/issues/:
   002-...
 Module map saved to .ralph/module-map.md
 First 1-3 stories are tracer-bullet visible: yes
-Next step: /ralph --kanban  (or /pocock-flow continues automatically)
+Next step: /ralph --kanban  (or /matt-pocock-coding-workflow continues automatically)
 ```
 
 ## When to re-slice

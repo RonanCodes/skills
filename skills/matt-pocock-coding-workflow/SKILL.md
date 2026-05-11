@@ -1,12 +1,12 @@
 ---
-name: pocock-flow
+name: matt-pocock-coding-workflow
 description: End-to-end Matt Pocock coding workflow as a single orchestrated skill. Chains grill-me, write-a-prd, slice-into-issues, ralph, and close-the-loop in order. Asks once at the start whether to run in-the-loop (human reviews per issue) or AFK (full night-shift Ralph). Use when starting a new feature, project, or substantial change and you want the disciplined grill, slice, loop, verify shape instead of jumping straight to code. Triggers on: "build the whole flow", "pocock flow", "matt pocock flow", "matt pocock workflow", "start a new feature", "day shift night shift", "set up night shift", "setup night shift", "kick off night shift", "run night shift", "go night shift", "afk run", "go AFK on this", "let's go AFK", "kick off the loop", "go end-to-end", "run the full flow".
 category: workflow
 argument-hint: [--afk | --in-loop] [--prd <name>] <feature-or-project>
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 ---
 
-# Pocock Flow
+# Matt Pocock's Coding Workflow
 
 The full Matt Pocock workflow as one skill. Grill the brief, write the PRD, slice into vertical issues, run the Ralph loop, close the loop.
 

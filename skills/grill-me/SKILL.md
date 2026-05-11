@@ -38,7 +38,7 @@ Same pattern, different input. If the user pastes (or points at a file containin
 2. Extract the decisions that *were* made, and the gaps where decisions *should have been* made but weren't.
 3. Grill the user on the gaps only. Skip questions the transcript already settled.
 
-This is how post-meeting "we kind of agreed" becomes a written contract before any code is touched. Pairs with `/pocock-flow` step 1.
+This is how post-meeting "we kind of agreed" becomes a written contract before any code is touched. Pairs with `/matt-pocock-coding-workflow` step 1.
 
 ## Conceptual background
 

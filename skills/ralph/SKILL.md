@@ -40,7 +40,7 @@ By default, Ralph reads a single `.ralph/prd.json` and walks its stories in sequ
 
 Use Kanban mode when:
 
-- The PRD has been sliced into vertical-slice issues via `/slice-into-issues` (or `/pocock-flow`).
+- The PRD has been sliced into vertical-slice issues via `/slice-into-issues` (or `/matt-pocock-coding-workflow`).
 - You want to enable parallel agent execution down the road (Sandcastle-style), where multiple Ralph processes pull unblocked issues concurrently.
 - Story ordering depends on blocking relationships, not on a fixed sequence.
 

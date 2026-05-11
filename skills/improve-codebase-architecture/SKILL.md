@@ -122,7 +122,7 @@ These are the highest-leverage refactors. Flag them at the top of the report.
 
 ## How to act on this
 1. Pick one proposed consolidation.
-2. Run /pocock-flow with the consolidation as the brief.
+2. Run /matt-pocock-coding-workflow with the consolidation as the brief.
 3. Re-run /improve-codebase-architecture after to confirm the depth_score improved.
 ```
 

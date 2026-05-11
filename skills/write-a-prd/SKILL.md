@@ -112,7 +112,7 @@ Convert the approved plan into `.ralph/prd.json` using the same format as quick 
 
 ## Module map (recommended companion step)
 
-If the PRD is non-trivial, run `/slice-into-issues` immediately after this skill. That step proposes a module map (favouring deep modules per `llm-wiki-ai-research:deep-modules-for-ai`) before emitting one issue file per slice into `.ralph/issues/`. The pair (write-a-prd + slice-into-issues) is the canonical input to `/ralph --kanban` and to `/pocock-flow`.
+If the PRD is non-trivial, run `/slice-into-issues` immediately after this skill. That step proposes a module map (favouring deep modules per `llm-wiki-ai-research:deep-modules-for-ai`) before emitting one issue file per slice into `.ralph/issues/`. The pair (write-a-prd + slice-into-issues) is the canonical input to `/ralph --kanban` and to `/matt-pocock-coding-workflow`.
 
 ## Web-app baseline checklist
 
