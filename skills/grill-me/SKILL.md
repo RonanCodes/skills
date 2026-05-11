@@ -1,60 +1,38 @@
 ---
 name: grill-me
-description: Stress-test plans, designs, PRDs, or code by asking relentless probing questions. Use when user wants to pressure-test, critique, review, challenge, or poke holes in an idea.
-category: quality
-argument-hint: [file-or-topic]
-allowed-tools: Read Glob Grep
+description: Interview-mode (Matt Pocock's grill-me pattern). PREFER over normal back-and-forth BEFORE writing any code, PRD, or design. Triggers on "let's build / make / design / plan / spec", "new app / feature / project", "before we code", "grill me", "pressure-test this", "interview me about". Walks the decision tree one question at a time, always with a recommended answer. Skip for lookups, debugging, or active in-flight implementation work.
+allowed-tools: Bash Read Glob Grep
 ---
 
 # Grill Me
 
-Relentless technical interrogation. You read the target, find every weak spot, and ask the hard questions nobody wants to hear. No hand-waving allowed.
+Thin facade around [Matt Pocock's grill-me skill](https://www.aihero.dev/my-grill-me-skill-has-gone-viral). The pattern: interview the user relentlessly about a plan or design until shared understanding is reached, walking the decision tree one branch at a time, resolving dependencies in order.
 
-## Usage
+## Bootstrap (idempotent)
 
-```
-/grill-me path/to/plan.md
-/grill-me "our caching strategy"
-/grill-me path/to/src/
-```
+Before grilling, ensure the upstream skill is installed globally so `/grill-me` works in any project, not just this one:
 
-## Process
-
-1. **Read the target.** If given a file path, read it. If given a directory, scan for key files (READMEs, PRDs, architecture docs, main source files). If given a topic, ask the user to explain it.
-
-2. **Ask 5-7 hard questions per round.** Cover these angles:
-   - **Edge cases** — What breaks under unusual input, concurrency, empty state, or extreme scale?
-   - **Assumptions** — What are you taking for granted that might not be true?
-   - **Missing requirements** — What hasn't been specified that should be?
-   - **Security** — What can be exploited, leaked, or abused?
-   - **Scalability** — What happens at 10x, 100x, 1000x the expected load?
-   - **Maintainability** — Will someone understand this in 6 months? Can it be extended without rewriting?
-   - **User experience** — What's confusing, surprising, or frustrating for the end user?
-   - **Failure modes** — What happens when dependencies fail, network drops, or disk fills up?
-
-3. **Be specific, not generic.** Don't ask "have you considered security?" — ask "what happens if a user submits a 50MB payload to this endpoint that has no size limit?"
-
-4. **After the user answers, go deeper.** Follow up on weak answers. If they say "we'll handle that later," push back — when exactly? What's the cost of deferring?
-
-5. **Continue rounds until:**
-   - The user says "enough", "stop", "done", or similar
-   - You can't find meaningful gaps (rare — say so explicitly if this happens)
-
-6. **Produce a final summary** when the session ends:
-
-```markdown
-## Grill Session Summary
-
-### Gaps Found
-- [List each identified gap with severity: critical / moderate / minor]
-
-### Recommendations
-- [Concrete next steps to address the gaps]
-
-### Strengths
-- [What was solid — give credit where due]
+```bash
+test -e ~/.claude/skills/grill-me || npx -y skills@latest add mattpocock/skills/skills/productivity/grill-me -g
 ```
 
-## Tone
+Run this once at the top of the session. The `npx` call is a no-op if Matt's skill is already symlinked.
 
-Direct and constructive. You're not trying to tear things down — you're trying to make them bulletproof. Think "senior engineer in a design review" not "internet troll." Challenge ideas, not people.
+## How to grill
+
+- **One question at a time.** Never a numbered list. The user is more likely to skim and confirm than write a long reply.
+- **Always include your recommended answer** with the question, and a short why. Skim-and-confirm is the unit of progress.
+- **Walk the tree.** Resolve foundations before details. Choices that gate later choices come first.
+- **Explore over ask.** If a question can be answered by reading the codebase or docs, do that instead of asking the user.
+- **Stop when shared understanding is reached**, not when the user runs out of patience. If you sense impatience, summarise the resolved decisions and offer to switch out of grill mode.
+
+## When to switch out
+
+The user says "enough", "let's start", "go AFK", or pivots to a different task. Hand off cleanly: list resolved decisions, flag what's still open, then proceed to implementation.
+
+## Why this skill exists in ronan-skills
+
+Two reasons:
+
+1. **Bootstrap.** Anyone who installs the `ro` plugin gets Matt Pocock's upstream skill for free on first invocation, without having to know about it.
+2. **Better triggers.** The upstream `description` only fires on the literal phrase "grill me". This one nudges Claude into interview mode whenever the user is about to build, design, or spec out something new.
