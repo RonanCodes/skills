@@ -37,10 +37,11 @@ This skill picks option 3: load the wiki's SKILL.md as the playbook, execute the
 
 `<vault-short>` is the vault name without the `llm-wiki-` prefix (e.g. `ai-research`, `side-projects`). The skill resolves the full directory name internally.
 
-## Step 0: Resolve the wiki repo and config
+## Step 0: Resolve the wiki repo, manifest, and config
 
 1. **Wiki repo path**: default `~/Dev/ai-projects/llm-wiki`. If absent, error and ask the user where the wiki lives. Save the answer into the per-project config.
-2. **Per-project config**: read `./.ronan-skills-llm-wiki.local.json` from the current working directory.
+2. **Bridge manifest**: read `<wiki_repo_path>/bridge.json`. This is the contract for the bridge: it lists `ingest_routes` (subcommand → SKILL.md path), `vaults` (short name → purpose, tags, shape), `vault_root`, and `vault_prefix`. If it's missing, error: "wiki repo has no bridge.json. The bridge cannot resolve routes or vault metadata." Do not fall back to hardcoded paths; the manifest is the source of truth.
+3. **Per-project config**: read `./.ronan-skills-llm-wiki.local.json` from the current working directory.
    - If missing, run the **config init** flow (Step 1).
    - If present, parse it and proceed.
 
@@ -63,9 +64,9 @@ This skill picks option 3: load the wiki's SKILL.md as the playbook, execute the
 
 Triggered when `./.ronan-skills-llm-wiki.local.json` is missing, or when user runs `/ro:wiki config`.
 
-1. List the available vaults: `ls <wiki_repo_path>/vaults/` and strip the `llm-wiki-` prefix.
+1. Read the manifest's `vaults` map. Each key is the short name; each value has `purpose`, `tags`, `shape`. Verify the corresponding directory exists at `<wiki_repo_path>/<vault_root>/<vault_prefix><short>/` and drop any that don't.
 2. Use `AskUserQuestion` to ask:
-   - **Which vault(s) should this project write to by default?** (multi-select from the vault list)
+   - **Which vault(s) should this project write to by default?** (multi-select; show each option as `<short>: <purpose>` so the user has context)
    - **Of those, which is the primary default?** (single-select, only if more than one was picked)
 3. Write the config file to `./.ronan-skills-llm-wiki.local.json` with `project_name` set to the current directory's basename.
 4. If the project is a git repo (`test -d .git`), check whether `.gitignore` already excludes `*.local.json` or the file specifically. If not, append `.ronan-skills-llm-wiki.local.json` to `.gitignore`. Tell the user.
@@ -81,25 +82,27 @@ Order of precedence:
 4. If config has only one entry in `vaults`, use it.
 5. If still ambiguous, ask the user via `AskUserQuestion` with the configured vaults as options.
 
-The full vault directory is `<wiki_repo_path>/vaults/llm-wiki-<short>/`.
+The full vault directory is `<wiki_repo_path>/<vault_root>/<vault_prefix><short>/` (using `vault_root` and `vault_prefix` from the manifest, not hardcoded).
 
 Verify the directory exists. If not, error with the list of actual vault directory names.
 
 ## Step 3: Pick the wiki skill to follow
 
-Based on the subcommand:
+Map the subcommand to a manifest route key:
 
-| Subcommand | Wiki skill to follow | SKILL.md path |
-|---|---|---|
-| (default, no subcommand) | `ingest-session` | `<wiki>/.claude/skills/ingest-session/SKILL.md` |
-| `text` | `ingest-text` | `<wiki>/.claude/skills/ingest-text/SKILL.md` |
-| `notes` | `rough-notes` (cleanup mode) | `<wiki>/.claude/skills/rough-notes/SKILL.md` |
+| Subcommand | Manifest route key |
+|---|---|
+| (default, no subcommand) | `session` |
+| `text` | `text` |
+| `notes` | `notes` |
+
+Look up the route in `bridge.json` under `ingest_routes.<key>`. The full path to the playbook is `<wiki_repo_path>/<route.skill>`. If the route key isn't in the manifest, error: "no ingest route registered for <key>. Check bridge.json in the wiki repo."
 
 ## Step 4: Read and execute the wiki skill
 
-1. **Read** the chosen SKILL.md in full. Treat it as the authoritative playbook.
+1. **Read** the chosen SKILL.md in full (path resolved from the manifest in Step 3). Treat it as the authoritative playbook. If the file doesn't exist at the manifest's path, error: "manifest points at <path> but the file is missing. bridge.json in the wiki repo is stale, fix it there."
 2. Substitute the resolved vault into any `<vault>` placeholder in its instructions.
-3. **Execute every step** the wiki skill describes — vault paths, frontmatter, index/log updates, ROADMAP updates, commits, etc. — exactly as written.
+3. **Execute every step** the wiki skill describes (vault paths, frontmatter, index/log updates, ROADMAP updates, commits, etc.) exactly as written.
 4. **Do not skip steps** to be terse. The wiki skill's commit + index + log + ROADMAP updates are load-bearing for searchability later.
 5. If the wiki skill says "auto-commit", honour it. Run the commit inside the wiki repo (`git -C <wiki_repo_path> ...`), respecting `~/CLAUDE.md` rules: emoji + conventional format, no Co-Authored-By, weekday-hours timestamp rule.
 
@@ -134,20 +137,20 @@ Vault: side-projects | Commit: 7a3b2c9 (in wiki repo)
 /ro:wiki vaults
 ```
 
-`ls <wiki_repo_path>/vaults/` and print short-form names with a one-line description from each vault's `wiki/index.md` first heading (read line 1 of each).
+Read `bridge.json` and print each vault as `<short>: <purpose>  [shape: <shape>, tags: <tags>]`. Group by `shape` (hub / spoke / activity) for readability. If a vault in the manifest has no corresponding directory on disk, flag it inline with `(missing dir)`.
 
-## Cross-project skill access — note for future maintainers
+## Cross-project skill access (note for future maintainers)
 
 Skills are scoped to: `~/.claude/skills/`, plugins, and the **current project's** `.claude/skills/`. The wiki repo's project-local skills are **not** invocable from other projects via the `Skill` tool.
 
 This skill works around that by **reading the wiki's SKILL.md files directly with the `Read` tool** and executing their instructions inline. That keeps the wiki skills as the single source of truth without requiring them to be promoted to global `ro:*` skills.
 
-If the wiki ever moves its skills to a new path, update the paths in Step 3.
+Skill paths and vault metadata are resolved through `<wiki_repo_path>/bridge.json` (the bridge manifest), so the wiki can rename or move ingest skills without breaking this bridge as long as the manifest is updated. If the wiki ever drops `bridge.json`, this skill will refuse to run rather than fall back to guessed paths.
 
 ## Rules
 
 - The new skill never modifies wiki repo files outside the configured vault and the standard index/log/ROADMAP files described in `ingest-session`.
-- Commits inside the wiki repo follow `~/CLAUDE.md`: emoji + conventional commit, no Co-Authored-By, weekday-hours timestamp guard (08:30–18:00 forbidden Mon–Fri).
+- Commits inside the wiki repo follow `~/CLAUDE.md`: emoji + conventional commit, no Co-Authored-By, weekday-hours timestamp guard (08:30-18:00 forbidden Mon-Fri).
 - The `.ronan-skills-llm-wiki.local.json` file is **per-project, gitignored**. Never commit it.
 - If the user asks to write to a vault not in their config, do it but ask whether to add the vault to the config for next time.
 - Apply `/ro:write-copy` rules to every line of generated wiki content. No em-dashes, no AI-tell vocabulary, no rhetorical-reversal filler.

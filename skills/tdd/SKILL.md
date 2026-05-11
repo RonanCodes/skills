@@ -87,6 +87,12 @@ If working on a story from `.ralph/prd.json`, update the story's `passes` field 
 
 1. Never write implementation before the test
 2. Never write more than one test at a time
-3. Never skip the red step — seeing the test fail proves it tests something real
-4. Keep each cycle under 15 minutes of work — if it's bigger, split the slice
+3. Never skip the red step, seeing the test fail proves it tests something real
+4. Keep each cycle under 15 minutes of work; if it's bigger, split the slice
 5. If stuck, step back and check if the slice is too big
+
+## Why TDD is the load-bearing feedback loop for agents
+
+The quality of an agent's feedback loop sets the ceiling on its output quality. TDD instruments the code *before* the implementation lands, which makes it much harder for the agent to "cheat" the test (write the implementation first, then write a test that conveniently matches). Without good feedback loops the agent codes blind, no matter how good the prompt is.
+
+This is also why **deep modules** work so well with TDD: one test boundary around a deep module covers a lot of behaviour, so each red-green cycle exercises a meaningful slice rather than a thin shell. Background: `llm-wiki-ai-research:deep-modules-for-ai`.

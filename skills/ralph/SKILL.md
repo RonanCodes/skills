@@ -1,8 +1,8 @@
 ---
 name: ralph
-description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged), validates, and updates progress. Supports named PRDs (e.g. one per project phase) via --prd <name>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
+description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged), validates, and updates progress. Supports named PRDs via --prd <name>, sequential PRD or Kanban-style issue files via --kanban, and a reviewer-gate (Matt Pocock implementer/reviewer split) via --reviewer <model>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
 category: development
-argument-hint: [--prd <name>] [--mode fresh|batched|single] [--plan-only] [--max-iterations <N>]
+argument-hint: [--prd <name>] [--mode fresh|batched|single] [--kanban] [--reviewer <model>] [--plan-only] [--max-iterations <N>]
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 ---
 
@@ -33,6 +33,45 @@ The `--mode` flag is the most important decision. Pick the one that matches your
 | `unbounded` | Same as `fresh` but no `--max-iterations` cap | "Run all night, ship as much as you can" | Same as `fresh` plus the wall-clock-budget concern |
 
 **Critical rule**: `batched` mode requires explicit user opt-in via the `--mode batched` flag. It must NEVER be the silent default. The night-shift run on 2026-05-06 silently became batched-mode because the agent decided one-context-many-stories was easier; that's exactly what this rule prevents.
+
+## Kanban mode (--kanban)
+
+By default, Ralph reads a single `.ralph/prd.json` and walks its stories in sequence. With `--kanban`, Ralph reads one markdown file per story from `.ralph/issues/` (produced by `/slice-into-issues`) and picks the highest-priority **unblocked** issue each iteration based on `blocked-by` frontmatter.
+
+Use Kanban mode when:
+
+- The PRD has been sliced into vertical-slice issues via `/slice-into-issues` (or `/pocock-flow`).
+- You want to enable parallel agent execution down the road (Sandcastle-style), where multiple Ralph processes pull unblocked issues concurrently.
+- Story ordering depends on blocking relationships, not on a fixed sequence.
+
+In Kanban mode each iteration:
+
+1. Walks `.ralph/issues/*.md`, filters to `status: ready` with no unmet `blocked-by`.
+2. Picks the smallest-blast-radius unblocked issue (tie-break: filename order).
+3. Implements with the same fresh-context + PR-per-story rules as the default sequential mode.
+4. Marks the issue `status: done` on success; updates any issues whose `blocked-by` references this one.
+
+Background → `llm-wiki-ai-research:phase-n-ralph-loop`.
+
+## Reviewer gate (--reviewer <model>)
+
+Pass `--reviewer opus` (or another model) to add Matt Pocock's implementer/reviewer split to every iteration.
+
+- **Implementer agent** (default: Sonnet). Lean prompt. Story + relevant code + tests. Pulls coding standards from `~/.claude/skills/coding-principles/` on demand only.
+- **Reviewer agent** (the model you passed). Receives the full diff, the original issue's acceptance criteria, and the complete coding-standards content inlined. Returns one of:
+  - `merge`: PR can be squash-merged.
+  - `request-changes`: implementer gets the reviewer's specific notes and tries again (single retry per iteration).
+  - `reject`: issue goes back to `status: ready` with the rejection note on the issue file.
+
+Background → `llm-wiki-ai-research:push-vs-pull-coding-standards`.
+
+The reviewer-gate is **off by default** (preserves existing Ralph behaviour). Turn it on when:
+
+- Running AFK and you can't review every PR yourself.
+- The codebase has explicit house-style rules a reviewer should catch.
+- You have Opus budget to spend on review (review uses more tokens than implementation in this split).
+
+Do NOT use `--reviewer` together with `--mode batched`; the implementer/reviewer split assumes fresh context per story.
 
 ## Per-story fresh context (recommended)
 

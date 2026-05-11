@@ -101,14 +101,18 @@ Convert the approved plan into `.ralph/prd.json` using the same format as quick 
 
 ## Story Writing Rules
 
-- **Vertical slices, not horizontal layers.** Each story cuts through UI, logic, and data. Never a story like "set up database" alone.
+- **Vertical slices, not horizontal layers.** Each story cuts through UI, logic, and data. Never a story like "set up database" alone. Background: `llm-wiki-ai-research:vertical-slices-tracer-bullets`.
 - **Independently demoable.** After each story, you can show something working.
 - **Tracer bullet first.** The first story should be the thinnest possible end-to-end path.
 - **Foundational/risky slices first.** Validate unknowns early, not last.
-- **One Ralph iteration per story.** If a story feels too big for one context window, split it.
+- **One Ralph iteration per story.** If a story feels too big for one context window, split it. Background: `llm-wiki-ai-research:smart-zone-dumb-zone`.
 - **Use "As a X, I want Y so that Z" format** for story descriptions.
 - **IDs are sequential:** US-001, US-002, US-003, etc.
 - **Priority matches order:** story with priority 1 is built first.
+
+## Module map (recommended companion step)
+
+If the PRD is non-trivial, run `/slice-into-issues` immediately after this skill. That step proposes a module map (favouring deep modules per `llm-wiki-ai-research:deep-modules-for-ai`) before emitting one issue file per slice into `.ralph/issues/`. The pair (write-a-prd + slice-into-issues) is the canonical input to `/ralph --kanban` and to `/pocock-flow`.
 
 ## Web-app baseline checklist
 

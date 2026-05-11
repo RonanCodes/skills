@@ -47,6 +47,8 @@ See: [principles/solid.md](principles/solid.md)
 | **Separation of Concerns** | UI, business logic, and data access are separate. Always. |
 | **Law of Demeter** | `a.getB().getC().doThing()` is a red flag. Only talk to immediate friends. |
 | **Least Privilege** | Functions receive only the data they need. Private by default. |
+| **Deep Modules** | Small interface, large behaviour behind it (Ousterhout). Especially important when delegating implementation to agents: a deep module lets a human review the interface contract and delegate the inside. Background: `llm-wiki-ai-research:deep-modules-for-ai`. |
+| **Push reviewer, pull implementer** | In multi-agent setups, push coding standards into the *reviewer* agent's prompt; let the *implementer* pull standards on demand. Background: `llm-wiki-ai-research:push-vs-pull-coding-standards`. |
 
 See: [principles/boundaries.md](principles/boundaries.md)
 

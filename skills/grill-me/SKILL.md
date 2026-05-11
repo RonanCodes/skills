@@ -30,6 +30,20 @@ Run this once at the top of the session. The `npx` call is a no-op if Matt's ski
 
 The user says "enough", "let's start", "go AFK", or pivots to a different task. Hand off cleanly: list resolved decisions, flag what's still open, then proceed to implementation.
 
+## Meeting-transcript variant
+
+Same pattern, different input. If the user pastes (or points at a file containing) a recorded meeting transcript, run the grilling over the transcript instead of starting from a fresh brief:
+
+1. Read the transcript end-to-end.
+2. Extract the decisions that *were* made, and the gaps where decisions *should have been* made but weren't.
+3. Grill the user on the gaps only. Skip questions the transcript already settled.
+
+This is how post-meeting "we kind of agreed" becomes a written contract before any code is touched. Pairs with `/pocock-flow` step 1.
+
+## Conceptual background
+
+The pattern (interrogation precedes specification) is documented at `llm-wiki-ai-research:grill-before-spec`. The skill is one implementation of that pattern; the principle holds regardless of tooling.
+
 ## Why this skill exists in ronan-skills
 
 Two reasons:
