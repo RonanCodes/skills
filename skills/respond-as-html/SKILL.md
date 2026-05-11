@@ -76,33 +76,124 @@ SLUG="<derived-from-title>"
 FILE="$OUT_DIR/${TIMESTAMP}-${SLUG}.html"
 ```
 
-## Step 3: Pick the libraries (decision tree)
+## Step 3a: Pick the style variant by content shape
 
-Walk the content. For each item below, if the answer is yes, include the library's CDN tag in the artefact's `<head>` and use it. Online is always available; size does not matter; the question is whether the library saves real work.
+Four variants. Pick by content shape, not by taste. All four share spacing/radius/shadow tokens; only typography, scale, palette, and layout change.
 
-| If the artefact has… | Pull this library | CDN |
+| Variant | Use when content is… | Heading / Body / Mono | Body size | Layout | Palette light / dark |
+|---|---|---|---|---|---|
+| **Editorial** (default) | Workshop syntheses, trend scans, AI essays, long-form narrative with diagrams | Newsreader (or Iowan Old Style stack) / Source Serif 4 / JetBrains Mono | 18px, 1.25 scale | Single column, 65ch measure, sticky chapter-only TOC on wide screens, drop cap optional on h1 | Warm paper #FBF7F0 on #1A1714 / #131210 on #E8E2D6 |
+| **Reference** | Specs, PRDs, decision trees, API-style docs, glossaries, plans | Inter / Inter / JetBrains Mono | 15px, 1.2 scale | Left sidebar nav + content (max 65-75ch) + optional right TOC; code blocks span full column; both rails sticky | Near-white #FAFAFA on near-black #0A0A0A, single accent from Radix Indigo 9 |
+| **Dashboard** | KPI reports, stack research with matrices, comparison documents, dense numeric tables | Geist Sans / Geist Sans / Geist Mono | 14px, tight 1.15 scale, `tabular-nums` on | Multi-column grid (auto-fit minmax 280px), sticky filter/legend bar, summary-detail-source stack | Cool #F7F8FA / #0B0D10, status colours from Radix (green-9 / amber-9 / red-9 / blue-9) plus one brand accent |
+| **Journal** | Personal reflections, capture-mode digests, podcast show-notes, book-style pieces | iA Writer Duo (or Newsreader) / iA Writer Quattro (or Source Serif 4) / iA Writer Mono | 19px, loose 1.7 leading, 1.333 scale | Single column, 60ch measure, generous top/bottom whitespace, breadcrumb-only nav, no sidebar | Cream #F5EFE0 on #2A2520 / #1B1814 on #D8CFBF |
+
+Default to **Editorial** unless the content is unambiguously dashboard- or reference-shaped. Editorial is the highest-comprehension layout for narrative and the right default for ~60% of artefacts.
+
+### Typography defaults (all variants)
+
+- **Measure:** 65ch for Editorial and Reference; 60ch for Journal; auto for Dashboard cards. Hard cap at 80ch (WCAG 1.4.8).
+- **Line-height:** body 1.55-1.65; headings 1.15-1.25; loose Journal can go 1.7-1.8.
+- **Type scale:** modular, set in `rem`. Editorial 1.25 (major third). Reference / Dashboard 1.2 (minor third). Journal 1.333 (perfect fourth).
+- **Tabular numerals:** always `font-variant-numeric: tabular-nums` on table cells and KPI numbers.
+- **Vertical rhythm:** snap every margin to a 4px or 8px base unit. Heading top-margin ≈ 2× its line-height.
+- **Ornaments:** drop caps Editorial-only. Small caps for run-in headings via `font-variant-caps: all-small-caps`. Common ligatures on for serif body, off for code blocks.
+
+### Palette and accent strategy
+
+- **Warm paper** (#FBF7F0 light / #131210 dark) for Editorial and Journal. Avoid pure white #FFFFFF for long-form: contrast ratio 21:1 against black causes glare during long reads.
+- **Cool near-white** (#F7F8FA / #FAFAFA) for Dashboard and Reference. Cool greys make charts easier to scan.
+- **One accent per artefact** for Editorial and Reference. Three status colours plus one brand accent for Dashboard.
+- **Radix Colors** is the recommended palette system (12-step scales with a designed dark parallel). Tailwind palette is fine for prototypes but its dark mode is hue-rotation, which can look muddy. Open Props is the lightest option if just CSS variables are needed.
+- **Honour `prefers-color-scheme: dark` by default**, no toggle for read-once artefacts. Dark mode must be a designed pair, not a hue rotation: warm-paper artefacts go to warm near-black, cool dashboards go to cool near-black.
+
+### Standard interactive shell (every variant)
+
+Every multi-chapter artefact gets the same navigation shell so readers move through artefacts with consistent muscle memory:
+
+- **Breadcrumb** at the top with "← Back to index" link.
+- **Sticky table of contents** in the left column on screens ≥ 1000px, listing chapters with `01`, `02`, … prefixes, highlighting the active chapter via IntersectionObserver (rootMargin `-30% 0px -55% 0px`).
+- **TOC collapses** to a wrap-flex horizontal nav at the top on narrow screens.
+- **Each chapter section** has a stable `id="ch-<slug>"` and `scroll-margin-top: 2rem` so anchor jumps don't sit under the breadcrumb.
+- **Footer** with source links and back-to-index.
+
+This shell is mandatory for any artefact with 3+ chapters. For 1-2 chapter artefacts, breadcrumb + footer is enough.
+
+### Folder structure when artefacts have child pages
+
+When an artefact is a single self-contained page, write to `artifacts/html/<timestamp>-<slug>.html` (the current default). When an artefact will have child pages (sub-topics, drill-downs), write to a folder instead:
+
+```
+artifacts/html/
+├── index.html                              # catalog of all artefacts
+├── 2026-05-11-1030-pocock-workflow.html    # single-page artefact
+└── 2026-05-15-0900-product-spec/           # multi-page artefact
+    ├── index.html                          # parent page with its own TOC
+    ├── api-reference.html                  # child page 1
+    ├── data-model.html                     # child page 2
+    └── acceptance-criteria.html            # child page 3
+```
+
+The folder makes it trivial to zip and share (`zip -r product-spec.zip 2026-05-15-0900-product-spec/`). All children link back to their parent's `index.html`, and the parent's TOC includes child-page links at the appropriate chapter.
+
+## Step 3b: Pick the libraries (decision tree)
+
+The recommended stack, locked in 2026-05-11 after side-by-side comparison of five styles. Default to this; deviate only with reason.
+
+### Always pulled (these always pay)
+
+| Layer | Library | CDN |
 |---|---|---|
+| Icons | **Lucide** (font version) | `unpkg.com/lucide-static@latest/font/lucide.css` |
 | Diagrams (flowchart, sequence, mindmap, gantt, timeline, ER, state) | **Mermaid 10** | `cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js` |
-| Standard charts (line, bar, pie, radar, scatter, area) | **Chart.js 4** | `cdn.jsdelivr.net/npm/chart.js@4` |
-| Genuinely custom data visualisation (force graphs, sankey, treemap, geo, anything Chart.js can't do well) | **D3 7** | `cdn.jsdelivr.net/npm/d3@7` |
-| Icons (visual hierarchy, section markers, status indicators) | **Lucide** (font version) | `unpkg.com/lucide-static@latest/font/lucide.css` |
-| Interactive primitives (tabs, accordions, alerts, badges, tooltips, copy buttons, dialogs, disclosures, dropdowns) | **Shoelace 2** (web components, accessibility built in) | `cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2/cdn/shoelace-autoloader.js` + the matching theme CSS |
-| Light state / toggles (only if Shoelace's reactivity isn't already covering it) | **Alpine.js 3** | `unpkg.com/alpinejs@3` |
+| Charts (line, bar, area, scatter, dot) | **Observable Plot 0.6** (declarative grammar built on D3, modern API, better defaults than Chart.js) | `cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm` (ES module) |
+
+### Pulled when content demands it
+
+| If the artefact has… | Pull this | CDN |
+|---|---|---|
+| Genuinely custom data viz (force graphs, sankey, treemap, geo) that Plot can't do well | **D3 7** | `cdn.jsdelivr.net/npm/d3@7` |
 | Math / equations | **KaTeX** | `cdn.jsdelivr.net/npm/katex` |
-| Code highlighting (when the artefact shows multiple code blocks worth styling) | **highlight.js** (auto-detect) or **Prism** (deliberate theme) | `cdn.jsdelivr.net/npm/highlight.js@11` |
-| Sortable / filterable tables (more than ~10 rows, user will want to interact) | **Tabulator** | `cdn.jsdelivr.net/npm/tabulator-tables@6` |
-| Animations / scroll effects | **Motion One** (~10KB, modern) or **GSAP** | `cdn.jsdelivr.net/npm/motion@10` |
-| Maps | **Leaflet** (light, OSM) or **MapLibre** (vector tiles) | `unpkg.com/leaflet@1.9` |
+| Code highlighting (3+ code blocks worth styling) | **highlight.js** (auto-detect) or **Prism** | `cdn.jsdelivr.net/npm/highlight.js@11` |
+| Sortable / filterable tables (10+ rows, user interaction expected) | **Tabulator** | `cdn.jsdelivr.net/npm/tabulator-tables@6` |
+| Animations | **Motion One** (~10KB) | `cdn.jsdelivr.net/npm/motion@10` |
+| Maps | **Leaflet** or **MapLibre** | `unpkg.com/leaflet@1.9` |
 | 3D / WebGL | **Three.js** | `cdn.jsdelivr.net/npm/three@latest` |
 
-For layout, pick by content shape, not by reflex:
+### Interactive primitives: NATIVE HTML5 + ~40 lines custom JS
 
-- **Editorial / long-form reading / narrative synthesis** → handcrafted CSS with serif body (Iowan Old Style, Palatino, Georgia stack). The voice lives in the typography; libraries would generic-ify it.
-- **Dashboard / report / multi-card comparison** → **Tailwind via Play CDN**, optionally with **DaisyUI** for shadcn-style components. (Note: real shadcn cannot run via CDN; it requires a build step.)
+This is the most important calibration. **Do NOT pull Shoelace, DaisyUI, or any component library by default.** Their design language fights the editorial typography voice and the primitives are small enough to hand-roll.
 
-**Default to editorial** unless the content is clearly dashboard-shaped (cards, grids, side-by-side comparisons, KPIs). When in doubt, editorial wins. The user has confirmed editorial typography is the preferred voice.
+| Primitive | Recommendation | Notes |
+|---|---|---|
+| Tabs | Hand-roll with `role="tablist"`, `role="tab"`, `role="tabpanel"` + ~25 lines JS for click, arrow-key nav, focus management | Full keyboard accessibility, voice-coherent |
+| Disclosure / accordion | Native `<details>` + `<summary>` | Zero JS |
+| Modal / dialog | Native `<dialog>` | Zero JS |
+| Tooltips (simple, one-line) | Native `title=""` attribute | Browser handles render and a11y |
+| Tooltips / popovers (rich content) | Native `popover` attribute + `popovertarget` | Stable in all evergreen browsers |
+| Badges | Styled `<span>` | Zero JS |
+| Alerts / callouts | Styled `<div>` with a Lucide icon | Zero JS |
+| Copy buttons | `<button>` + ~10 lines JS using `navigator.clipboard.writeText` with class-toggle toast feedback | |
 
-Avoid by default: jQuery, Bootstrap, full React, MUI, shadcn (build step required).
+### Modern browser APIs worth using
+
+- **CSS @container queries**, let cards / stat strips respond to their own container width instead of viewport. More robust than media queries.
+- **CSS `:has()`**, selectors based on children; sometimes saves JS.
+- **`popover` attribute**, covered above; native floating UI.
+
+### Modern browser APIs NOT recommended (gotchas)
+
+- **View Transitions API** for tab switches: causes a visible flash that looks worse than an instant swap. Tested 2026-05-11; do not use for tab content swaps. May be fine for full page navigation.
+
+### Layout system
+
+- **Default: handcrafted editorial CSS** with serif body (Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia stack) and sans hierarchy (Inter, system-ui, sans-serif). The voice lives in the typography; libraries would generic-ify it. Use the Observatory palette CSS variables (amber, cyan, green, plum, salmon).
+- **Optional: Tailwind via Play CDN** when content is clearly dashboard-shaped (cards, grids, KPI strips, side-by-side comparisons). Optionally with **DaisyUI** for shadcn-style components.
+
+**Default to editorial** unless the content is unambiguously dashboard-shaped. When in doubt, editorial wins. User has confirmed editorial typography is the preferred voice.
+
+### Avoid by default
+
+jQuery (legacy), Bootstrap (heavier than Tailwind for the same payoff), full React (build step kills the single-file premise), MUI (build step), real shadcn (build step), **Shoelace / Web Awesome** (design language fights editorial voice; primitives are 35 lines of JS away), Chart.js as default (use Plot; Chart.js is fine as fallback if Plot doesn't fit).
 
 ## Step 3b: Render the HTML
 
