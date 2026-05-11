@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="respond-as-html (llm-wiki)" />
+  <title>{{TITLE}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --accent: #5bbcd6;
+      --accent-warm: #e0af40;
+      --accent-cool: #7dcea0;
+    }
+    body {
+      font-family: ui-serif, "Iowan Old Style", "Apple Garamond", Georgia, Cambria, "Times New Roman", Times, serif;
+      font-feature-settings: "kern", "liga", "calt";
+      text-rendering: optimizeLegibility;
+    }
+    .prose pre, .prose code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .prose pre { background: rgba(127,127,127,0.08); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+    .prose :where(code):not(pre code) {
+      background: rgba(127,127,127,0.12);
+      padding: 0.1em 0.35em;
+      border-radius: 0.3em;
+      font-size: 0.92em;
+    }
+    .prose table { width: 100%; border-collapse: collapse; }
+    .prose th, .prose td { border-bottom: 1px solid rgba(127,127,127,0.18); padding: 0.5rem 0.75rem; text-align: left; }
+    .prose tr:nth-child(even) td { background: rgba(127,127,127,0.04); }
+    .prose blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; color: rgba(127,127,127,0.95); }
+    .prose h1, .prose h2, .prose h3 { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; letter-spacing: -0.01em; }
+    .prose a { text-decoration: none; border-bottom: 1px dotted currentColor; }
+    .prose a:hover { border-bottom-style: solid; }
+    .meta { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.85rem; opacity: 0.65; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f1115; color: #e6e6e6; }
+    }
+    @media (prefers-color-scheme: light) {
+      body { background: #fafaf7; color: #1a1a1a; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <main class="mx-auto max-w-3xl px-6 py-12">
+    <header class="mb-10">
+      <p class="meta">{{TIMESTAMP}} &middot; respond-as-html</p>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight">{{TITLE}}</h1>
+    </header>
+    <article class="prose prose-lg max-w-none">
+      {{CONTENT}}
+    </article>
+    <footer class="mt-16 pt-6 border-t border-black/10 dark:border-white/10 meta">
+      <p>Generated from <code>{{ROOT}}</code></p>
+    </footer>
+  </main>
+  <script>
+    // Lazy-load mermaid only if a mermaid code block is present.
+    if (document.querySelector('pre code.language-mermaid, .mermaid')) {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+      s.onload = () => window.mermaid && window.mermaid.initialize({ startOnLoad: true });
+      document.head.appendChild(s);
+    }
+  </script>
+</body>
+</html>
