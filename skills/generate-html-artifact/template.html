@@ -40,6 +40,61 @@
     @media (prefers-color-scheme: light) {
       body { background: #fafaf7; color: #1a1a1a; }
     }
+    /* Lightbox: any image or chart in the article is click-to-zoom */
+    article img,
+    article .mermaid,
+    article .mermaid svg,
+    article figure svg,
+    article .chart,
+    article .chart svg,
+    article [data-zoom] {
+      cursor: zoom-in;
+    }
+    dialog.lightbox {
+      border: none;
+      padding: 0;
+      background: transparent;
+      max-width: 100vw;
+      max-height: 100vh;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    dialog.lightbox::backdrop {
+      background: rgba(10, 10, 12, 0.88);
+      backdrop-filter: blur(4px);
+    }
+    dialog.lightbox .lightbox-stage {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem;
+      box-sizing: border-box;
+      cursor: zoom-out;
+    }
+    dialog.lightbox .lightbox-stage > * {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 40px rgba(0,0,0,0.45));
+    }
+    dialog.lightbox .lightbox-close {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: #fff;
+      font: 500 0.85rem/1 ui-sans-serif, system-ui, sans-serif;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.4rem;
+      cursor: pointer;
+    }
+    dialog.lightbox .lightbox-close:hover { background: rgba(255,255,255,0.16); }
   </style>
 </head>
 <body class="min-h-screen">
@@ -55,6 +110,10 @@
       <p>Generated from <code>{{ROOT}}</code></p>
     </footer>
   </main>
+  <dialog class="lightbox" id="lightbox" aria-label="Zoomed view">
+    <button type="button" class="lightbox-close" aria-label="Close (Esc)">Close · Esc</button>
+    <div class="lightbox-stage"></div>
+  </dialog>
   <script>
     // Lazy-load mermaid only if a mermaid code block is present.
     if (document.querySelector('pre code.language-mermaid, .mermaid')) {
@@ -63,6 +122,65 @@
       s.onload = () => window.mermaid && window.mermaid.initialize({ startOnLoad: true });
       document.head.appendChild(s);
     }
+
+    // Lightbox: click any image or chart in <article> to view fullscreen.
+    // Native <dialog>.showModal() handles Esc-to-close for free.
+    (function () {
+      const dialog = document.getElementById('lightbox');
+      if (!dialog) return;
+      const stage = dialog.querySelector('.lightbox-stage');
+      const closeBtn = dialog.querySelector('.lightbox-close');
+      const isZoomable = (el) => {
+        if (!el) return false;
+        if (el.closest('a, button, .lightbox-stage, .lightbox-close')) return false;
+        if (el.tagName === 'IMG') return true;
+        if (el.hasAttribute && el.hasAttribute('data-zoom')) return true;
+        // Charts: any SVG inside the article (Mermaid, Observable Plot, D3, hand-rolled)
+        if (el.tagName === 'svg' || el.tagName === 'SVG') return !!el.closest('article');
+        return false;
+      };
+      const open = (source) => {
+        stage.replaceChildren();
+        let node;
+        if (source.tagName === 'IMG') {
+          node = document.createElement('img');
+          node.src = source.currentSrc || source.src;
+          node.alt = source.alt || '';
+        } else {
+          // Clone SVG / chart container as-is
+          node = source.cloneNode(true);
+          node.removeAttribute('style');
+          if (node.tagName === 'svg' || node.tagName === 'SVG') {
+            node.setAttribute('width', '100%');
+            node.setAttribute('height', '100%');
+            node.style.maxWidth = '100%';
+            node.style.maxHeight = '100%';
+          }
+        }
+        stage.appendChild(node);
+        dialog.showModal();
+      };
+      document.addEventListener('click', (e) => {
+        // Walk up from the click target to find a zoomable element
+        let el = e.target;
+        // For Mermaid containers (.mermaid wrapping an svg), prefer the inner svg
+        if (el && el.closest) {
+          const mermaidWrap = el.closest('.mermaid');
+          if (mermaidWrap) {
+            const inner = mermaidWrap.querySelector('svg');
+            if (inner) { e.preventDefault(); open(inner); return; }
+          }
+        }
+        while (el && el !== document.body) {
+          if (isZoomable(el)) { e.preventDefault(); open(el); return; }
+          el = el.parentElement;
+        }
+      });
+      // Click anywhere on the stage (image or backdrop) closes
+      stage.addEventListener('click', () => dialog.close());
+      closeBtn.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => stage.replaceChildren());
+    })();
   </script>
 </body>
 </html>

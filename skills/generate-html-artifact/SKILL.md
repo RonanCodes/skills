@@ -118,6 +118,18 @@ Every multi-chapter artefact gets the same navigation shell so readers move thro
 
 This shell is mandatory for any artefact with 3+ chapters. For 1-2 chapter artefacts, breadcrumb + footer is enough.
 
+### Image and chart lightbox (every variant)
+
+Every artefact ships with a click-to-zoom lightbox for images and charts. It's baked into the template, so callers do not need to add anything per-artefact; just emit normal `<img>`, Mermaid `<div class="mermaid">`, and SVG charts (Observable Plot, D3, hand-rolled), and clicks "just work":
+
+- Click any `<img>` in `<article>` → fullscreen modal.
+- Click any `.mermaid` diagram or chart `<svg>` in `<article>` → fullscreen modal.
+- Opt-in for anything else by adding `data-zoom` to the element.
+- **Escape** closes (native `<dialog>` behaviour). Clicking the image or the backdrop also closes.
+- A small `Close · Esc` button sits top-right as an affordance for non-keyboard users.
+
+Implementation is a native `<dialog>` plus ~40 lines of vanilla JS in the template, no library. If you build a Tailwind / Dashboard variant from scratch, port the same `dialog.lightbox` block over so behaviour is consistent across variants.
+
 ### Folder structure when artefacts have child pages
 
 When an artefact is a single self-contained page, write to `artifacts/html/<timestamp>-<slug>.html` (the current default). When an artefact will have child pages (sub-topics, drill-downs), write to a folder instead:
