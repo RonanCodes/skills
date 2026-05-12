@@ -332,6 +332,40 @@ What we changed in the skill (this version):
 - **Per-session log file `.ralph/<name>.session.md`**: a separate per-PRD log that captures loop-level start + finish + flags + per-story aggregates. Survives orchestrator session death (start timestamp recorded eagerly; finish timestamp added at loop-exit, OR recognisably absent if the orchestrator died mid-loop).
 - **Orchestrator must never touch the shared working tree between iterations.** Once a subagent has checked out its `ralph/us-NNN-<slug>` branch in the shared repo, the orchestrator's only safe operations are: read PRD JSON files, read progress.txt files, spawn the next subagent. Any git operation the orchestrator wants (e.g. committing a session-state file to main) must be queued for after the loop completes, OR done by a dedicated subagent.
 
+### 2026-05-12 → 2026-05-13: Lekkertaal Phase 1 night shift — background-agent watchdog kills + PR-process drift
+
+Run shape: project scaffolded from PRD with ~35 Phase 1 stories. First batch (7 drill stories) shipped cleanly. Subsequent 5 batch-agent attempts ALL stalled with no merges. After much diagnosis, switched to orchestrator-spawns-fresh-implementer-per-story (the documented `--mode fresh` pattern) and shipped.
+
+What went wrong:
+
+- **Background-agent stream watchdog (600s).** The Claude Code background-agent harness kills any agent that goes 600 seconds without printing to stdout. **Agent thinking time counts as silence.** Batch agents trying to do 7-stories-in-one-context spent >10 min "understanding" the codebase / planning the next story between tool calls and got killed. The harness watchdog is not user-disable-able; the only mitigation is keeping the agent's stream chatty.
+
+- **Earlier batch agents falsely claimed `Agent` tool was unavailable.** When asked to spawn fresh subagents per story, the previous-night agent reported "no Agent/Task sub-agent spawning available in this harness" and pivoted to serial in-context implementation, which then hit the watchdog. The Agent tool IS available to background-spawned agents; it just needed an explicit instruction to use it. (This contradicts the 2026-05-06 Dataforce afternoon finding — that was a different harness configuration.)
+
+- **PR-process discipline drift.** Under time pressure the orchestrator (and I, the calling agent) started direct-pushing to main with `git push origin main` to bypass the PR + CI flow. By the time we caught it, 5 direct-to-main commits had landed and the audit trail was muddled. Worse, the CI workflow only triggered on `push` to main — not on `pull_request` — so PRs had no checks to gate merges with.
+
+- **Cloudflare Workers env-at-init-time trap.** `clerkMiddleware()` and similar middleware called at module init time on CF Workers cannot read secrets via `process.env` (always empty on workers) or via `import.meta.env.*` for non-`VITE_*` keys. They CAN read public `vars` from `wrangler.jsonc`. Forgetting this and registering middleware that reads `CLERK_PUBLISHABLE_KEY` at module init crashed cold-start with 500 on every route, including `/`. Hours lost.
+
+- **Route handlers throwing instead of redirecting.** Several scaffolded auth-gated routes threw `new Error("Not signed in")` when `auth().isAuthenticated === false`. TanStack Start surfaced this as a 500, not a 302 to `/sign-in`. Story implementers must use `throw redirect({ to: '/sign-in' })` from `@tanstack/react-router` for auth gates; never `throw new Error()`.
+
+What we changed in the skill (this version):
+
+- **Watchdog discipline section (mandatory for every subagent prompt)**: subagent MUST echo a heartbeat `echo "[$(date +%H:%M:%S)] <what we're doing>"` BEFORE every Bash call that might take >30s. AND immediately after returning from each long step. Multiple echoes are free; agent-thinking-time-between-tool-calls is the killer.
+
+- **Orchestrator-spawns-fresh-implementer pattern, explicit**: orchestrator does NOT touch code. Its only loop is: (1) read PRD, (2) pick next unfinished story, (3) `Agent` tool call with a self-contained implementer prompt (background=false, blocking), (4) wait for one-line return, (5) log to progress.txt, (6) next story. Implementer is short-lived (~10-20 min) and well under the watchdog. Orchestrator stays cheap in context because its work-per-iteration is just dispatch.
+
+- **PR-only flow is a HARD GUARD**. No `git push origin main`. No `--admin` flag on `gh pr merge`. CI must run on `pull_request:` events (not just `push: branches: [main]`) — verify the project's workflow has both triggers BEFORE starting Ralph; if it doesn't, the first story must add a `pull_request` trigger to the workflow. CI passing is required before squash-merge.
+
+- **First-iteration pre-flight**: before any story, scan the project's `.github/workflows/*.yml` for `on: pull_request:`. If missing, story 0 is "Add pull_request trigger to CI workflow". Without this, Ralph cannot enforce CI-gated merges and the whole flow degrades to "merge and pray".
+
+- **CF Workers + Clerk gotcha**: when an upstream story requires Clerk middleware on CF Workers, add `CLERK_PUBLISHABLE_KEY` AND `VITE_CLERK_PUBLISHABLE_KEY` to `wrangler.jsonc` vars (publishable keys ship to browsers; safe to commit). Push `CLERK_SECRET_KEY` as a secret. Same pattern works in `@tanstack/react-start` and `next.js` on CF Workers. Reference implementation: `~/Dev/ai-projects/dataforce/src/start.ts`.
+
+- **Auth gate pattern**: server functions that gate on auth must `throw redirect({ to: '/sign-in' })` (TanStack Router import), never `throw new Error()`. Add this as a Codebase Pattern automatically detectable by scanning `src/lib/server/*.ts` for `throw new Error("Not signed in")` and similar.
+
+- **"Ship simpler with TODO" rule**: when an implementer hits an API it doesn't understand after 5 min of investigation, ship the simpler working version with `// TODO(refinement): <thing>` and move on. The watchdog will kill an agent that spends 15 min reading SDK docs silently.
+
+- **Failure pattern recognition**: if 2 consecutive subagent dispatches stall at the SAME story, escalate — either the story spec is bad or there's an environment issue. Don't retry a third time blindly. Mark the story BLOCKED with the failure reason and continue.
+
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
 ```json
