@@ -80,8 +80,8 @@ When `--mode fresh` is selected, each iteration MUST:
 1. Read `.ralph/prd.json` to find the next unfinished story
 2. Read `.ralph/patterns.md` if it exists (carries cross-iteration learnings)
 3. **Spawn a NEW subagent via the Agent tool** with `subagent_type: general-purpose` (or a more specialised type if appropriate)
-4. The subagent's prompt is self-contained: includes the story's full EARS criteria, design ref, Definition of Done, and a copy of `.ralph/patterns.md`
-5. The subagent does the work end-to-end: implement, test, commit, push, open PR, watch CI green, squash-merge, mark `passes: true`, append to `progress.txt`
+4. The subagent's prompt is self-contained: includes the story's full EARS criteria, design ref, Definition of Done, a copy of `.ralph/patterns.md`, and an explicit instruction to **record `started` ISO 8601 timestamp before any work** + **record `finished` ISO 8601 timestamp before returning** + **embed both into the progress.txt entry** (see "Progress Report Format" below for the exact shape)
+5. The subagent does the work end-to-end: implement, test, commit, push, open PR, watch CI green, squash-merge, mark `passes: true`, append to `progress.txt` (with timestamps)
 6. The subagent returns a one-line summary
 7. The parent loop reads the summary, then spawns the NEXT story's subagent (if more remain and within `--max-iterations`)
 
@@ -160,16 +160,20 @@ Don't re-prompt once the file exists. To change policy later, edit `.ralph/.giti
 ## How It Works
 
 0. Ensure `.ralph/.gitignore-policy` exists (see "Gitignore Policy" above); if not, prompt once and write it before touching any PRD
-1. Resolve PRD file from `--prd` flag (or default `.ralph/prd.json`) — find the highest priority story where `passes: false`
-2. Read the matching progress file (and `.ralph/patterns.md` if present) — check Codebase Patterns section for learnings from prior iterations
-3. **In `--mode fresh`: spawn a fresh subagent for this story.** In `--mode batched`: continue in current context. In `--mode single`: do this story then stop.
-4. Implement the story against the EARS acceptance criteria
-5. Validate (typecheck, lint, test — whatever the project requires; respect Definition of Done if present in the spec)
-6. **Open ONE PR for this story** (no batching; see PR-per-story HARD GUARD above)
-7. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`
-8. Wait for CI green; auto-merge via squash
-9. Update the PRD file — set `passes: true` for completed story
-10. Append progress to the matching progress file with learnings
+1. **Record session start** in `.ralph/<name>.session.md`: ISO timestamp, mode, max-iterations, reviewer, PRD path (see "Session timing" below)
+2. Resolve PRD file from `--prd` flag (or default `.ralph/prd.json`) — find the highest priority story where `passes: false`
+3. Read the matching progress file (and `.ralph/patterns.md` if present) — check Codebase Patterns section for learnings from prior iterations
+4. **Record story start** timestamp in the orchestrator's notes (passed to the subagent prompt so it can echo it back in the progress entry)
+5. **In `--mode fresh`: spawn a fresh subagent for this story.** In `--mode batched`: continue in current context. In `--mode single`: do this story then stop.
+6. Implement the story against the EARS acceptance criteria
+7. Validate (typecheck, lint, test — whatever the project requires; respect Definition of Done if present in the spec)
+8. **Open ONE PR for this story** (no batching; see PR-per-story HARD GUARD above)
+9. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`
+10. Wait for CI green; auto-merge via squash
+11. **Record story finish** timestamp; compute duration; subagent embeds both into its progress.txt entry
+12. Update the PRD file — set `status: "passed"`, `passes: true`, and `notes` including the squash SHA
+13. Append progress to the matching progress file with timestamps + learnings
+14. **On loop exit** (all stories complete OR max-iterations OR hard error): append the session-finish timestamp + total duration to `.ralph/<name>.session.md`
 
 ## One Story Per Iteration (in fresh / single modes)
 
@@ -182,10 +186,14 @@ In `--mode batched`, multiple stories share one context. This is the explicit op
 
 ## Progress Report Format
 
-APPEND to the matching progress file (never replace). The progress file is `.ralph/<name>.progress.txt` when `--prd <name>` is used (e.g. `.ralph/phase-2-onboarding-2026-05-06.progress.txt`), otherwise `.ralph/progress.txt`:
+APPEND to the matching progress file (never replace). The progress file is `.ralph/<name>.progress.txt` when `--prd <name>` is used (e.g. `.ralph/phase-2-onboarding-2026-05-06.progress.txt`), otherwise `.ralph/progress.txt`. **Timestamps are mandatory** so the user can audit when each story actually ran (don't rely on git commit dates; those are often backdated for weekday-hours rules):
 
 ```
-## [Date/Time] - [Story ID]: [Story Title]
+## [Story ID]: [Story Title]
+- started: 2026-05-11T23:35:12+02:00
+- finished: 2026-05-11T23:44:41+02:00
+- duration: 9m29s
+- PR: #61 (squash-merged 8240af6)
 - What was implemented
 - Files changed
 - **Learnings for future iterations:**
@@ -194,6 +202,37 @@ APPEND to the matching progress file (never replace). The progress file is `.ral
   - Useful context for next tasks
 ---
 ```
+
+Both `started` and `finished` are real wall-clock ISO 8601 timestamps with offset, NOT the backdated git commit dates. The subagent records `started` first thing after reading its prompt (capture via `date -u +%Y-%m-%dT%H:%M:%S%z` or the local-tz equivalent), and `finished` right before it returns its one-line summary. `duration` is computed in the implementer subagent and embedded; the orchestrator does not need to compute or merge times.
+
+## Session timing
+
+`.ralph/<name>.session.md` is a per-PRD session log that tracks loop-level start/finish across all iterations. Format:
+
+```
+# Ralph session log — <phase name>
+
+## Session 1 — 2026-05-11T23:33:00+02:00 to 2026-05-12T03:42:18+02:00 (4h 09m 18s)
+- mode: fresh
+- reviewer: opus
+- max-iterations: 12
+- stories attempted: 7
+- stories passed: 7
+- stories deferred / blocked / failed: 0
+- total subagent wall-clock: 3h 31m 04s
+- orchestrator overhead (between iterations): 38m 14s
+- notes: <one or two lines if relevant>
+
+## Session 2 — ...
+```
+
+When the loop starts, append a new `## Session N` heading with the start timestamp + flags. When the loop exits (cleanly OR via error OR via max-iterations), edit the session entry to add the finish timestamp + duration + per-story aggregates. If the orchestrator session dies mid-loop (token limit, user disconnect), leave the start timestamp in place; the next `/ralph` invocation appends a new session heading and the prior one is recognisable as "started but never recorded a finish".
+
+Compute the per-story aggregates by summing each story's `duration` field in the progress.txt; the orchestrator does that at loop-exit time.
+
+Total wall-clock and orchestrator-overhead can both be derived: total = `finished - started` from the session line, subagent-sum from the per-story durations, orchestrator-overhead = total minus subagent-sum.
+
+The session log is committed alongside the PRD + progress under the same `commit-all` gitignore policy.
 
 ## Codebase Patterns
 
@@ -278,6 +317,20 @@ What we changed in the skill (this version):
 - **Deployed-route e2e helper**: stories with a "deployed URL returns 200" DoD criterion need a Playwright config that boots a signed-in browser context against prod (or a session-cookie helper). Without it, "verify deployed" defaults to a curl probe, which doesn't cover routes behind auth. See `[[ideal-tech-setup]]` § Greenfield Spec Baseline for the canonical pattern.
 
 These mitigations apply going forward; Phase 3 PRD must reflect them.
+
+### 2026-05-11 (evening into night): Dataforce Phase 4 + Phase 5 night shift — timestamp gap
+
+Phase 4 (7 stories) + Phase 5 (7 stories) shipped over one continuous night-shift orchestration. `--mode fresh --reviewer opus` worked as designed: 14 fresh subagents (one per story), each spawning a SECOND fresh Opus subagent for review. Zero rejections, zero deferrals. Per-story subagent wall-clock ranged 8m–34m (median ~12m).
+
+What went wrong:
+- **No absolute timestamps were recorded.** Only `duration_ms` came back via task notifications, and git commit dates were backdated to honour the weekday-outside-work-hours rule, so the user could not audit when each story actually ran. The progress.txt entries only had a date prefix (e.g. `## 2026-05-11 - US-407: ...`), not a real wall-clock start/finish.
+- **Orchestrator briefly committed to the wrong branch.** Between iterations the orchestrator wrote `.ralph/night-shift-state.md` and ran `git add + commit` in the shared working tree, which was at that moment checked out to the subagent's `ralph/us-NNN-...` branch. The commit landed on the subagent's branch and traveled with its PR. Annoying, not broken.
+
+What we changed in the skill (this version):
+
+- **Mandatory timestamps in the progress.txt entry**: `started`, `finished`, `duration`. Subagent records both via `date -u +%Y-%m-%dT%H:%M:%S%z` (or local-tz equivalent) at the very start of work and immediately before returning. The orchestrator does NOT compute or merge times; the subagent owns both fields. See "Progress Report Format" for the exact shape.
+- **Per-session log file `.ralph/<name>.session.md`**: a separate per-PRD log that captures loop-level start + finish + flags + per-story aggregates. Survives orchestrator session death (start timestamp recorded eagerly; finish timestamp added at loop-exit, OR recognisably absent if the orchestrator died mid-loop).
+- **Orchestrator must never touch the shared working tree between iterations.** Once a subagent has checked out its `ralph/us-NNN-<slug>` branch in the shared repo, the orchestrator's only safe operations are: read PRD JSON files, read progress.txt files, spawn the next subagent. Any git operation the orchestrator wants (e.g. committing a session-state file to main) must be queued for after the loop completes, OR done by a dedicated subagent.
 
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
