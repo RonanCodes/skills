@@ -113,6 +113,9 @@ If close-the-loop finds failures, surface them clearly. Don't auto-fix in this s
 - **Going AFK on a borderline PRD.** If the grill step left more than two open questions, do not go AFK.
 - **Reviewing every commit in AFK mode.** Defeats the point. Trust the reviewer-gate and feedback loops; do the morning review.
 - **Silent compaction in long sessions.** Each step should hand off to the next with a clean handoff message. Don't ride one context window through all six steps.
+- **Batched-context implementers (regression from 2026-05-12 night shift).** When the loop spawns "do 5 stories" agents instead of one-story agents, the long-running batch agent stalls the harness watchdog on silent thinking between stories. Always pass `--mode fresh` and verify each iteration spawns a NEW Agent tool call. See `/ro:ralph` § Lessons (2026-05-12) for the full pattern.
+- **PR-process drift under time pressure.** When stories block on infra, the loop will be tempted to `git push origin main` directly to "unblock". Don't. The audit trail becomes unreadable and CI gating breaks. Every change goes through PR + CI green + squash-merge, including chores.
+- **CI not running on PRs.** First-iteration pre-flight: verify the project's CI workflow has both `on: push: branches: [main]` AND `on: pull_request:` triggers. If only `push`, the first story is to add the `pull_request` trigger; otherwise CI cannot gate merges and the whole flow degrades to "merge and pray".
 
 ## Cross-references (concepts)
 
