@@ -78,4 +78,14 @@ for line in "${PENDING[@]}"; do
   echo "$line"
 done
 
+# Append the handler instructions so the model knows how to react to the
+# markers above. Keeping the handler co-located with the markers means the
+# whole onboarding flow is portable: it travels with the plugin to any
+# machine, no per-user CLAUDE.md edits required.
+HANDLER_FILE="$SCRIPT_DIR/nudge-handler.md"
+if [[ -f "$HANDLER_FILE" ]]; then
+  echo ""
+  cat "$HANDLER_FILE"
+fi
+
 exit 0

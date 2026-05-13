@@ -10,7 +10,7 @@ This directory ships hooks that load automatically when the `ro` plugin is insta
 RO_SKILLS_NUDGE: <name> | <summary> | setup: <hint>
 ```
 
-The handler rule (read by the model from the user's global `CLAUDE.md`) tells Claude what to do when it sees one of these markers: ask the user via AskUserQuestion with three options (set up now, remind in 7 days, never ask again) and write the answer to `~/.claude/.ro/nudge-<name>`.
+When any markers are emitted, the hook also appends the contents of `nudge-handler.md` to its stdout. That file tells the model exactly how to react: ask via AskUserQuestion with three options (set up now, remind in 7 days, never ask again) and write the answer to `~/.claude/.ro/nudge-<name>`. Shipping the handler in the plugin means the whole onboarding flow is portable, no per-user `CLAUDE.md` edits required.
 
 ### Adding a new nudge
 
