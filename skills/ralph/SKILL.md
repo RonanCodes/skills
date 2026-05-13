@@ -366,6 +366,32 @@ What we changed in the skill (this version):
 
 - **Failure pattern recognition**: if 2 consecutive subagent dispatches stall at the SAME story, escalate — either the story spec is bad or there's an environment issue. Don't retry a third time blindly. Mark the story BLOCKED with the failure reason and continue.
 
+### 2026-05-14: Dataforce Phase 8 — GitHub Actions billing wall blocked overnight merges
+
+Run shape: 6 PRs queued for the merge orchestrator (`/tmp/merge-stack-v4.sh`); first PR merged at 22:48. The remaining 5 sat for an hour because every E2E job died in 3-10s with the annotation:
+
+> The job was not started because recent account payments have failed or your spending limit needs to be increased.
+
+The Quality job (smaller, fits the free tier) ran fine. E2E (longer) needed paid minutes that were unavailable. The orchestrator polled green CI forever and never advanced.
+
+What went wrong:
+
+- **Persistent CI failure looked like flake.** The orchestrator's poll loop has no notion of "this CI will never go green," so it kept waiting.
+- **No notification.** The operator was AFK; the run silently stalled. Each lost hour is irrecoverable on a night shift.
+
+What we changed in the skill (this version):
+
+- **Billing-wall detection in the orchestrator.** When `gh pr checks <pr>` shows a FAILURE check AND `gh run view <run-id>` annotation contains "recent account payments have failed" OR "spending limit", the orchestrator stops polling that PR and switches to the **local-CI fallback** path:
+  1. Send a `PushNotification` once per orchestrator run, naming the billing URL + the org.
+  2. For each remaining PR in queue: checkout the branch locally, run `pnpm install --frozen-lockfile && pnpm db:migrate:local && pnpm run quality && pnpm test:e2e`. If green, `gh pr merge <pr> --squash --delete-branch --admin` with a comment quoting the billing block.
+  3. The `--admin` flag is the deliberate exception to the "PR-only flow is a HARD GUARD" rule above. It is permitted ONLY when (a) the local quality+E2E run passed on the branch tip, (b) the PR comment explaining the billing fallback was posted, and (c) the operator was notified.
+  4. Subsequent PRs in the queue get rebased onto the new main + force-pushed (same as the normal post-merge rebase step). CI may still try and fail; that's OK because the next merge follows the same local-CI path.
+- **Local-drain script lives at `/tmp/local-drain.sh`** as a canonical pattern; reference implementation in this session.
+- **Pre-push Husky hook is the first defence.** The pre-push runs `pnpm run quality` already. The billing-fallback ALSO runs `pnpm test:e2e` (which pre-push does not) because E2E is the part GH Actions usually owns. Without this, the local-CI fallback would have a coverage gap vs the real CI.
+- **PushNotification mandatory on billing detection.** Single message naming the URL + the affected PRs so the operator can fix billing while the orchestrator keeps draining locally.
+
+This is the only sanctioned way to skip a GH Actions CI gate. Any other "CI is being slow" excuse must wait it out; the only signal that justifies `--admin` is the literal "recent account payments have failed" annotation.
+
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
 ```json
