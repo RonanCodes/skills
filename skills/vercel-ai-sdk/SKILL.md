@@ -11,6 +11,27 @@ Wire the Vercel AI SDK v6 (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`, `@ai-sdk/
 
 Canonical decision: this is the user's default for any LLM-touching code in TanStack Start / Cloudflare Workers projects. Drop to a raw provider SDK only when the AI SDK has not wrapped a feature you need (see "When NOT to use" below).
 
+## On auto-load: prompt the user first
+
+The user never invokes this skill manually; the harness auto-loads it via fuzzy match on the description's keywords. By the time these instructions are in your context, the user has not actively chosen to add the AI SDK. So:
+
+**Before introducing the SDK to a project that doesn't already use it** (i.e. before any `pnpm add ai @ai-sdk/...` or a new `lib/models.ts` scaffold), prompt the user via `AskUserQuestion`:
+
+> Question: "I'm about to wire the Vercel AI SDK into this project for `<feature>`. Sound good, or would you rather take a different approach?"
+> Options:
+> 1. **Wire it. Vercel AI SDK is the right default** (recommended)
+> 2. **Wait, explain the alternatives first**
+> 3. **Use a raw provider SDK instead**
+> 4. **Skip the AI feature for now**
+
+**For projects that already use the SDK** (check `package.json` for `"ai"` + `"@ai-sdk/*"` deps), skip the prompt and proceed with feature work. Don't re-confirm every change inside a single conversation.
+
+**For STRUCTURAL changes inside an existing-SDK project** (adding a new provider package, enabling prompt caching for the first time, introducing tool calling where none existed, switching the primary model), a single quick `AskUserQuestion` is still worth it.
+
+For pure code-tweak changes (refactoring an existing `streamText` call, tightening a Zod schema, adding a log line), just proceed. No prompt.
+
+Reason: the user prefers being looped in on structural changes since auto-loaded skills can otherwise surprise-install dependencies. See the `feedback_skills_prompt_before_structural_change` memory for the durable rule.
+
 ## When to use
 
 Reach for this skill when the user wants any of:
