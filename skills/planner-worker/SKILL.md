@@ -74,9 +74,18 @@ Order and project-awareness rules:
    - Heuristic: count concrete acceptance criteria in the PRD. If the PRD looks "closed" (>= 3 numbered acceptance criteria), recommend "no". If open-ended ("we'll know when we see it"), recommend "yes"
    - CLI equivalent: `--judge-agent`
 
+7. **Trust local pre-push CI; skip waiting for GitHub Actions?**
+   - Probe: `test -f .husky/pre-push` AND grep that file for any of `pnpm quality`, `pnpm test`, `pnpm build`, `pnpm lint`, `pnpm typecheck`
+   - Recommend "yes" when a pre-push hook with at least build + test + lint is present (the case in any repo scaffolded by `/ro:new-tanstack-app`)
+   - Recommend "no" when no pre-push hook, OR when the repo's `.github/workflows/*.yml` runs checks that are NOT in the pre-push hook (e.g. cross-OS matrix, integration tests against a managed service)
+   - CLI equivalent: `--trust-local-ci` (yes) or `--wait-for-gh-ci` (no)
+   - Persisted in `.swarm.json` as `trust-local-ci: true|false`
+   - Workers configured with `trust-local-ci=true` push, verify the push hook ran clean, and squash-merge immediately. They do NOT poll `gh api .../check-runs`.
+   - If the repo has branch-protection rules that require status checks, the planner detects this via `gh api repos/<owner>/<repo>/branches/main/protection` and overrides to `wait-for-gh-ci=true` (printing why)
+
 Each answer is echoed back as the CLI flag the user could have passed next time, e.g. "noted, equivalent to `--workers 5`". CLI flags supplied at invocation skip their corresponding prompt.
 
-`--skip-grill` short-circuits to defaults: `workers=3`, `github=false`, `mode=interactive`, `merge-target=current-branch`, `worker-model=sonnet`, `judge-agent=false`.
+`--skip-grill` short-circuits to defaults: `workers=3`, `github=false`, `mode=interactive`, `merge-target=current-branch`, `worker-model=sonnet`, `judge-agent=false`, `trust-local-ci=true`.
 
 ## US-1: Planner
 
@@ -427,6 +436,53 @@ Sensible defaults when the file is absent. CLI flags always win over the file.
 - DO NOT mutate `main` directly from the worker; only the merger has merge authority
 - DO NOT push worker branches in non-`--github` mode (no noise on origin)
 - DO NOT exceed 10 workers without `--unsafe-many`. Real laptops thermal-throttle hard
+
+## Lessons from live runs
+
+Captured from the lekkertaal swarm run on 2026-05-14 (8 PRs landed across two waves). These are baked into the prompt template each worker receives.
+
+### 1. Pre-assign migration numbers when N workers all touch the DB
+
+When multiple workers each run `pnpm drizzle-kit generate`, they all grab the same next number (e.g. `0004`) and stomp `drizzle/meta/_journal.json`. The conflict is mechanical to resolve but burns planner cycles.
+
+**Fix:** the planner assigns each DB-touching worker a unique migration slot in its dispatch prompt: *"your migration is `0007_<slug>.sql`; do not run `drizzle-kit generate` until you've manually claimed that number in `_journal.json`."* Workers without a DB change don't get a slot.
+
+### 2. Worker poll loops must be foreground bash, NOT in-context monitor
+
+Workers that delegate CI watching to an in-context monitor tool can park silently if the monitor doesn't deliver events back into the worker's conversation. We saw one worker exit with "I'll wait for the monitor events to come through" — the PR was open, conflicts present, and the worker never came back.
+
+**Fix:** the dispatch prompt MUST tell the worker to poll CI via a foreground `bash` loop using `gh api repos/<owner>/<repo>/commits/<sha>/check-runs`, sleep 30s, re-poll. Hard cap 15 minutes. NEVER use an in-context monitor for this. If checks stay pending past the cap, STOP and report; do not retry blindly.
+
+### 3. CI may not trigger on the first push to a new branch
+
+We observed a worker push a branch + open a PR, and GitHub Actions did not fire on it. Force-pushing the same branch after a no-op rebase triggered CI normally. Root cause not fully isolated — could be path-filter quirk, draft-PR gating, or a brief Actions hiccup.
+
+**Fix:** after `git push`, the worker must verify CI fired within 60s via `gh api .../actions/runs?head_sha=<sha>`. If no run exists, force-push a no-op (`git commit --amend --no-edit && git push -f`) to nudge it. If that still doesn't work, escalate to the planner.
+
+### 4. Workers should rebase, not merge, on parent-branch drift
+
+When PR-1 lands while PR-2 is still in flight, PR-2 will hit conflicts. Rebasing PR-2 onto the new main and force-pushing is cleaner than merging main into PR-2 (which leaves merge bubbles in the PR). The lekkertaal run #66 (prompt caching) rebased cleanly onto #65 (telemetry) mid-flow and ended up composing both behaviours — a real win.
+
+**Fix:** worker prompt should say *"if your push is rejected because main moved, rebase onto origin/main, resolve conflicts, force-push-with-lease. Do not merge main into your branch."*
+
+### 5. Trust local pre-push CI; do not wait for GitHub Actions
+
+If the repo has a husky `pre-push` hook running `pnpm quality-checks` (format + lint + build + test + audit), pushing a branch already proves the same checks GitHub Actions will run. Waiting for GH CI to repeat the gauntlet adds 1-2 minutes per worker for zero additional safety.
+
+**Default (`--trust-local-ci`, ON):** workers run local checks, push, immediately squash-merge. If pre-push hook is missing or `SKIP_QUALITY_CHECKS=1` was used, fail loudly and do not merge.
+
+**Opt-out (`--wait-for-gh-ci`):** workers still poll `gh api .../check-runs` and only merge on green. Use when:
+- The repo has no pre-push hook
+- The repo lacks parity between local and CI (e.g. CI does additional integration tests against managed services)
+- The repo has branch-protection rules that require status checks before merge (in which case the planner cannot merge without CI green anyway — the flag is forced ON)
+
+**Setup-time prompt (US-0):** the planner asks the user once per repo:
+
+> "This repo has a pre-push hook running [<list of checks>]. GitHub Actions runs effectively the same checks. Skip GH CI wait and merge immediately after a clean push? [Y/n]"
+
+The answer is persisted in `.swarm.json` as `trust-local-ci: true|false`.
+
+**Safety net:** GH CI still runs on the merged commit on main. If a fluke bug lands, the post-merge CI run will flag it on main, and the planner can revert. The frequency of this happening (zero in the lekkertaal 8-PR run) does not justify the per-PR wait cost.
 
 ## See also
 
