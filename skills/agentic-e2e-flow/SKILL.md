@@ -65,14 +65,42 @@ If any check fails, offer to bootstrap before proceeding:
 
 The user can skip bootstrap and proceed anyway. The downstream skills tolerate partial setup.
 
+## Phase 0 — Drafts inbox check (pre-flight)
+
+Before generating a fresh PRD in gate 3, check whether the user already has ideas sitting in the `prd:draft` inbox. The inbox is the agent-native repo's "idea capture" — issues labelled `prd:draft` with freeform bodies that have NOT been grilled into Pocock's 7-section template yet.
+
+```bash
+gh issue list --label prd:draft --state open --json number,title,url,updatedAt --limit 20
+```
+
+If `N >= 1` open drafts, ask via `AskUserQuestion` ONCE (do not be intrusive; if the user already named a feature, default-proceed if they don't pick a draft):
+
+> "You have N open draft PRDs in this repo. Grill one of those, write a fresh PRD, or proceed without checking?"
+
+Options:
+
+- Each draft as its own option: `"Grill #<num> — <title>"` (cap at first ~60 chars of title)
+- `"Write a fresh PRD"` (the default — proceeds to gate 1/2/3 as normal)
+- `"Proceed without checking"` (skip the question for the rest of this session)
+
+On user pick:
+
+- Pick a draft → route to `/grill <issue-number>` for gate 2; the grill flow rewrites the body into the 7-section template and the user swaps the label from `prd:draft` to the gate label (e.g. `ready-for-agent`). After grill, that issue IS the parent PRD; skip gate 3 (write-a-prd) and proceed directly to gate 4 (slice-into-issues) with `--prd <issue-number>`.
+- Write fresh → continue to gate 1 as normal.
+- Skip → continue to gate 1 as normal.
+
+If `N == 0`, this phase is a silent no-op — proceed straight to gate 1.
+
+**`prd:draft` issues are NEVER picked up by gate 5 (build).** Drafts are explicitly excluded from `ready-for-agent`-labelled queries downstream. See `/ro:ralph` § "Filter / scope: `prd:draft` is NEVER picked up" and `/ro:planner-worker` § "Filter / scope: `prd:draft` is NEVER picked up" for the gh-query-level guards.
+
 ## The flow (six gates)
 
 ```
-┌─ swarm ─┐  ┌─ grill ─┐  ┌─ write-prd ─┐  ┌─ slice ─┐  ┌─ build ─┐  ┌─ ship ─┐
-│  optl.  │→ │ docs    │→ │  → GH issue │→ │ → GH    │→ │ swarm   │→ │ gh-ship│
-│ research│  │ CONTEXT │  │   parent    │  │ children│  │ or ralph│  │  merge │
-└─────────┘  └─────────┘  └─────────────┘  └─────────┘  └─────────┘  └────────┘
-   gate 1       gate 2         gate 3         gate 4       gate 5      gate 6
+┌─ drafts ─┐  ┌─ swarm ─┐  ┌─ grill ─┐  ┌─ write-prd ─┐  ┌─ slice ─┐  ┌─ build ─┐  ┌─ ship ─┐
+│ inbox    │→ │  optl.  │→ │ docs    │→ │  → GH issue │→ │ → GH    │→ │ swarm   │→ │ gh-ship│
+│ check    │  │ research│  │ CONTEXT │  │   parent    │  │ children│  │ or ralph│  │  merge │
+└──────────┘  └─────────┘  └─────────┘  └─────────────┘  └─────────┘  └─────────┘  └────────┘
+  phase 0       gate 1       gate 2         gate 3         gate 4       gate 5      gate 6
 ```
 
 At each gate, summarise what was produced, ask "ready to proceed, iterate, or skip?". Default action is proceed.
