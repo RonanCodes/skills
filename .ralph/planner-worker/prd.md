@@ -18,7 +18,7 @@ v1 of this skill therefore runs on Claude Code's **native Agent tool**, which in
 
 ## Goal
 
-Ship `/ro:planner-worker` as a new skill in `ronan-skills` that, given a grilled PRD on disk, runs a planner → worker swarm with merger agent and produces merged commits on the user's main branch.
+Ship `/ro:planner-worker` (alias `/ro:swarm`) as a new skill in `ronan-skills` that, given a grilled PRD on disk, runs a planner → worker swarm with merger agent and produces merged commits on the user's main branch.
 
 Definition of done for v1:
 - `cd <repo-with-grilled-prd> && /ro:planner-worker` ends with the backlog implemented, tests + types green, and either commits on `main` (default) or open PRs to merge (with `--github`)
@@ -108,6 +108,14 @@ Merge target defaults to the current branch at skill invocation. `--staging-bran
 **US-15: Skill page in skill-lab vault.** Add `vaults/llm-wiki-skill-lab/wiki/skills/planner-worker.md` documenting the skill, with cross-vault links into `[[ai-research:cursor-planner-worker-judge]]` and `[[ai-research:phase-n-ralph-loop]]`.
 
 **US-16: First real run against lekkertaal.** Ship the skill, then run it for real against the `lekkertaal` repo with a freshly grilled PRD covering at least three vertical-slice features. Record the run output (logs + commit hashes + wall time) as a source-note in `llm-wiki-skill-lab`.
+
+**US-17: `/ro:swarm` alias.** The primary skill name is `/ro:planner-worker` (explicit, easy to discover). `swarm` is the friendly alias. Ship both:
+
+1. Add the word **swarm** to the skill's `description:` frontmatter so the Skill tool's fuzzy matcher resolves `/ro:swarm`, "swarm coding", or "kick off the swarm" to this skill (description starts: "Multi-agent coding swarm. Planner / worker / merger over git worktrees on the Max plan...").
+2. Ship a thin redirect skill at `~/Dev/ronan-skills/skills/swarm/SKILL.md` whose body is a one-paragraph pointer to `/ro:planner-worker` so typing `/ro:swarm` directly works as a hard alias too, with no behavioural divergence.
+3. The skill page in `vaults/llm-wiki-skill-lab/wiki/skills/planner-worker.md` notes the alias up front.
+
+If the two-skill approach proves messy in practice (e.g. duplicated docs drift), collapse to description-only in v1.1.
 
 ## Architecture
 
@@ -233,3 +241,4 @@ Sensible defaults if the file is absent: auto-detect test runner, models as list
 4. Invoking the skill without flags opens the US-0 grilling phase, asks at least 5 questions with project-aware recommendations, and proceeds based on answers.
 5. Documented in `vaults/llm-wiki-skill-lab/wiki/skills/planner-worker.md` with cross-vault links to the planner-worker-judge concept and Phase N concept.
 6. Skill source committed and pushed to `ronan-skills`. Version bump tagged. Cache re-syncs.
+7. Both `/ro:planner-worker` and `/ro:swarm` resolve to the same behaviour (test: `/ro:swarm --help` and `/ro:planner-worker --help` produce identical output).
