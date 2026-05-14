@@ -106,9 +106,14 @@ bash skills/telegram/scripts/listen.sh --stop
 
 ### Security
 
-The listener REJECTS messages from any `chat_id` other than `TELEGRAM_CHAT_ID`. This matters: anyone who knows the bot username can DM it. Without the chat-id check, every random message becomes a Claude Code invocation in your working tree. Do not disable this.
+Two layers:
 
-If you need multi-user later, change `TELEGRAM_CHAT_ID` to a comma list and update the filter in `listen.sh`.
+1. **chat_id allowlist.** The listener REJECTS messages from any `chat_id` other than `TELEGRAM_CHAT_ID`. Anyone who knows the bot username can DM it; without this check every random message becomes a Claude Code invocation in your working tree. Do not disable.
+2. **--dangerously-skip-permissions.** The listener passes this to `claude -p` because launchd has no TTY to prompt for tool-call approvals. Without it, every Read / Bash / Edit hangs or errors and the bot is effectively text-completion-only. With it, the bot can do anything Claude Code can do as you, in `TELEGRAM_LISTEN_CWD`. The chat_id allowlist is what stops random Telegram users from exploiting that.
+
+If you ever lose your phone or Telegram account is compromised, `bash skills/telegram/scripts/listen.sh --stop` to take the daemon down, then revoke the bot in BotFather (`/revoke`).
+
+If you need multi-user later, change `TELEGRAM_CHAT_ID` to a comma list and update the filter in `listen.sh`. To make the bot read-only, remove `--dangerously-skip-permissions` from the dispatch line in `listen.sh`.
 
 ### Truncation
 

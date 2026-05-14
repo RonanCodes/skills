@@ -289,8 +289,13 @@ PY
       local session_id
       session_id="$(current_session_id)"
 
+      # --dangerously-skip-permissions is required for headless launchd context:
+      # claude -p has no TTY to prompt for tool-call approvals, so without this
+      # flag every Read / Bash / Edit call hangs or errors. Guarded by the strict
+      # chat_id allowlist above. To make the bot read-only, remove this flag and
+      # rely on whatever permission defaults apply in print mode.
       local out
-      out="$(cd "$cwd" && claude -p --session-id "$session_id" -- "$text" 2>&1 || true)"
+      out="$(cd "$cwd" && claude -p --dangerously-skip-permissions --session-id "$session_id" -- "$text" 2>&1 || true)"
       [[ -z "$out" ]] && out="(claude produced no output)"
 
       reply_text "$out" "$msg_id"
