@@ -219,8 +219,10 @@ run_listener() {
     fi
 
     # Parse updates one per line: "<update_id>\t<chat_id>\t<message_id>\t<text>"
+    # NOTE: must use `python3 -c '...'`, not `python3 <<'PY'`, otherwise the
+    # heredoc replaces python's stdin and the piped JSON never reaches the parser.
     local parsed
-    parsed="$(printf '%s' "$resp" | python3 <<'PY'
+    parsed="$(printf '%s' "$resp" | python3 -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -232,9 +234,8 @@ for u in data.get("result", []):
     chat_id = msg.get("chat", {}).get("id")
     mid = msg.get("message_id")
     text = (msg.get("text") or "").replace("\t", " ").replace("\n", "\\n")
-    print(f"{u['update_id']}\t{chat_id}\t{mid}\t{text}")
-PY
-)"
+    print("\t".join([str(u["update_id"]), str(chat_id), str(mid), text]))
+')"
 
     if [[ -z "$parsed" ]]; then
       sleep 1
