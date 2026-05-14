@@ -146,12 +146,12 @@ state_path, idle_hours = sys.argv[1], float(sys.argv[2])
 with open(state_path) as f:
     s = json.load(f)
 last = dt.datetime.strptime(s["last_message_at"], "%Y-%m-%dT%H:%M:%SZ")
-gap_h = (dt.datetime.utcnow() - last).total_seconds() / 3600.0
+gap_h = (dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - last).total_seconds() / 3600.0
 if gap_h > idle_hours:
     s = {
         "session_id": str(uuid.uuid4()),
-        "started_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "last_message_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "started_at": dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_message_at": dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "message_count": 0,
     }
     with open(state_path, "w") as f:
@@ -166,7 +166,7 @@ import json, sys, datetime as dt
 path = sys.argv[1]
 with open(path) as f:
     s = json.load(f)
-s["last_message_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+s["last_message_at"] = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%SZ")
 s["message_count"] = int(s.get("message_count", 0)) + 1
 with open(path, "w") as f:
     json.dump(s, f, indent=2)
@@ -286,17 +286,36 @@ for u in data.get("result", []):
         continue
       fi
 
-      # Default dispatch: claude -p with shared session id
-      local session_id
-      session_id="$(current_session_id)"
-
+      # Default dispatch: claude -p with shared session id.
+      # - First message of a session: `--session-id <uuid>` creates it.
+      # - Subsequent messages: `--resume <uuid>` continues it. (Using
+      #   --session-id again on the same uuid errors "already in use".)
       # --dangerously-skip-permissions is required for headless launchd context:
       # claude -p has no TTY to prompt for tool-call approvals, so without this
       # flag every Read / Bash / Edit call hangs or errors. Guarded by the strict
       # chat_id allowlist above. To make the bot read-only, remove this flag and
       # rely on whatever permission defaults apply in print mode.
+      local session_id
+      session_id="$(current_session_id)"
+
+      local msg_count
+      msg_count="$(python3 -c '
+import json, sys
+try:
+    print(json.load(open(sys.argv[1]))["message_count"])
+except Exception:
+    print(0)
+' "$STATE_FILE")"
+
+      local session_flag
+      if [[ "$msg_count" == "0" ]]; then
+        session_flag="--session-id"
+      else
+        session_flag="--resume"
+      fi
+
       local out
-      out="$(cd "$cwd" && claude -p --dangerously-skip-permissions --session-id "$session_id" -- "$text" 2>&1 || true)"
+      out="$(cd "$cwd" && claude -p --dangerously-skip-permissions "$session_flag" "$session_id" -- "$text" 2>&1 || true)"
       [[ -z "$out" ]] && out="(claude produced no output)"
 
       reply_text "$out" "$msg_id"
