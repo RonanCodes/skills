@@ -24,16 +24,31 @@ Auto-detect order: if `--source` is omitted, run `gh repo view --json url 2>/dev
 When `--source github:<label>` is active, each iteration:
 
 1. `gh issue list --label <label> --state open --json number,title,body,labels`
-2. Filter to **slice** issues (body opens with `## Parent\n\n#<N>`) — skip **parent PRD** issues (body opens with `## Problem Statement`). Parents are tracking issues, not work.
-3. Filter to issues with no unsatisfied `Blocked by` (parse `## Blocked by` section, treat closed referenced issues as satisfied).
-4. Pick the highest-priority unblocked slice (tie-break: lowest issue number).
-5. Add label `in-progress` to the chosen issue (creates label if missing).
-6. Implement in a fresh subagent context (same PR-per-story discipline as `local` mode).
-7. Open the PR with `Closes #<slice-number>` in the body — GitHub auto-closes the slice on merge.
-8. Remove `in-progress` label on PR open; the slice auto-closes on merge.
-9. When the last slice for a parent PRD closes, comment "All slices merged" on the parent and close it.
+2. **Filter out `prd:draft` issues.** See "Filter / scope: prd:draft is NEVER picked up" below — this is a HARD GUARD.
+3. Filter to **slice** issues (body opens with `## Parent\n\n#<N>`) — skip **parent PRD** issues (body opens with `## Problem Statement`). Parents are tracking issues, not work.
+4. Filter to issues with no unsatisfied `Blocked by` (parse `## Blocked by` section, treat closed referenced issues as satisfied).
+5. Pick the highest-priority unblocked slice (tie-break: lowest issue number).
+6. Add label `in-progress` to the chosen issue (creates label if missing).
+7. Implement in a fresh subagent context (same PR-per-story discipline as `local` mode).
+8. Open the PR with `Closes #<slice-number>` in the body — GitHub auto-closes the slice on merge.
+9. Remove `in-progress` label on PR open; the slice auto-closes on merge.
+10. When the last slice for a parent PRD closes, comment "All slices merged" on the parent and close it.
 
 `Closes #N` in the PR body is the load-bearing convention — without it, slices don't auto-close and the queue silently grows stale.
+
+### Filter / scope: `prd:draft` is NEVER picked up
+
+**`prd:draft` issues are NEVER picked up by this skill.** They represent ideas captured in the agent-native repo's "inbox", not ready work. Drafts have freeform bodies, NOT Pocock's 7-section template, and have not been grilled. Picking one up would mean implementing against an unfinished spec.
+
+To promote a draft into ready work, the user runs `/grill` on the issue. The `grill-with-docs` flow rewrites the body into the Pocock 7-section template, then the user swaps the label from `prd:draft` to the repo's gate label (`ready-for-agent` by default, or the project synonym like `Sandcastle` / `swarm` configured in `docs/agents/triage-labels.md`).
+
+When querying GitHub for backlog issues, ALWAYS exclude `prd:draft`. `gh` label semantics are tricky here: `--label <gate>` matches issues that have the gate label, but an issue can have BOTH `prd:draft` AND the gate label (e.g. if someone mis-labelled). Defence in depth:
+
+1. Pass `--label <gate>` to scope the initial query.
+2. Post-filter the JSON: drop any issue whose `labels[].name` contains `prd:draft`.
+3. Equivalently, use `gh issue list --label <gate> --search "-label:prd:draft" ...` to push the exclusion server-side.
+
+Reference the user to `/ro:list-draft-prds` if they want to see what's sitting in the drafts inbox. **Tip:** if you're not sure what's queued vs what's still an idea, run `/ro:list-draft-prds` first to see the inbox before kicking off Ralph.
 
 ## Quick Start
 
