@@ -33,6 +33,16 @@ Skip for: bug fixes, lookups, single-file edits, anything where the spec is alre
 
 Each step's output is the next step's input. No step is skippable.
 
+## Filter / scope: `prd:draft` is NEVER picked up
+
+This skill orchestrates Ralph at step 5. **`prd:draft` issues are NEVER picked up** by the underlying Ralph (or planner-worker) loop. Drafts are ideas captured in the agent-native repo's inbox — freeform body, NOT Pocock's 7-section template, NOT yet grilled.
+
+To promote a draft into ready work, the user runs `/grill` on the issue (which is what step 1 of this skill does anyway when given a draft issue number). The `grill-with-docs` flow rewrites the body into the 7-section template, then the user swaps the label from `prd:draft` to the gate label (`ready-for-agent` by default, or the project synonym configured in `docs/agents/triage-labels.md`).
+
+**Tip:** if you're starting this workflow and not sure whether to grill an existing idea or write a fresh PRD, run `/ro:list-draft-prds` first to see the drafts inbox for the current repo. Then step 1 of this skill grills the picked draft instead of starting from a blank prompt.
+
+The downstream Ralph step honours this exclusion via `gh` query filters; see `/ro:ralph` § "Filter / scope: `prd:draft` is NEVER picked up" for the query-level guards.
+
 ## Step 1: Grill
 
 Invoke `/grill-me`. The grilling step decides what the PRD is allowed to contain. Stop conditions:
