@@ -486,6 +486,27 @@ When PR-1 lands while PR-2 is still in flight, PR-2 will hit conflicts. Rebasing
 
 **Fix:** worker prompt should say *"if your push is rejected because main moved, rebase onto origin/main, resolve conflicts, force-push-with-lease. Do not merge main into your branch."*
 
+### 5a. Parallel workers MUST use isolated worktrees; verify on arrival
+
+Even with `isolation: "worktree"` in the Agent tool, workers occasionally land on the SHARED main checkout instead of a fresh worktree. When that happens, parallel workers stomp each other's uncommitted edits as they `git checkout` between branches. Observed 4+ times in the lekkertaal run (PRs #79, #82, #100, #103).
+
+**Symptoms:** a worker reports "the main checkout had uncommitted edits from another worker" or "my edits were wiped when another worker switched branches".
+
+**Fix in worker prompt:** every dispatch prompt should include a self-check at the top:
+
+```
+ON ARRIVAL:
+1. Run `git worktree list` and `pwd`. Confirm your pwd is NOT
+   <main-repo-path>. If it IS, create your own worktree at
+   `<main-repo-path>-wt-<issue-number>` and `cd` into it.
+2. `git status` should show clean (no other worker's edits).
+3. Only then start work.
+```
+
+This guarantees isolation even when the harness's `isolation: "worktree"` doesn't take effect for some reason. The cost is one extra mkdir + checkout per worker; the benefit is no lost work.
+
+**Fix in planner:** when 3+ workers are dispatched in parallel and ANY two report worktree collisions, the planner should add a pre-dispatch step that creates the worktrees explicitly and passes the path to each worker.
+
 ### 5. Trust local pre-push CI; do not wait for GitHub Actions
 
 If the repo has a husky `pre-push` hook running `pnpm quality-checks` (format + lint + build + test + audit), pushing a branch already proves the same checks GitHub Actions will run. Waiting for GH CI to repeat the gauntlet adds 1-2 minutes per worker for zero additional safety.
