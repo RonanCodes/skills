@@ -16,7 +16,7 @@ This is the shortest path between "I'm going to bed" and "the swarm is working".
 
 1. **Pre-flight current repo.** Run `gh repo view --json url,defaultBranchRef` to confirm there's a gh remote. If not → fail loudly with a pointer to `gh repo create`.
 2. **Resolve the queue label.** Default `ready-for-agent`. Override via `--label <name>`. Also check `docs/agents/triage-labels.md` for a project-local synonym (e.g. Pocock's `Sandcastle`) — if present, use that.
-3. **Count open slice issues.** `gh issue list --state open --label <label> --json number,body`. Filter to slices (body opens with `## Parent\n\n#<N>` — skip parent PRDs which open with `## Problem Statement`).
+3. **Count open slice issues.** `gh issue list --state open --label <label> --json number,body,labels`. **Filter out `prd:draft`** (see "Filter / scope" below — HARD GUARD). Then filter to slices (body opens with `## Parent\n\n#<N>` — skip parent PRDs which open with `## Problem Statement`).
 4. **Sanity-check there's unblocked work.** Parse `## Blocked by` sections. If ALL slices are blocked → fail with a list of the blocking issues.
 5. **Dispatch the swarm.** By default:
    ```
@@ -27,6 +27,20 @@ This is the shortest path between "I'm going to bed" and "the swarm is working".
    /ro:ralph --afk --source github:<label> --mode fresh
    ```
 6. **Return.** The dispatched skill handles everything else: planner emits dep graph, workers fan out in worktrees, merger reviews on Opus 4.7, Pushover fires at end via global CLAUDE.md rule 4 (or skill-level default, both fire). Don't tail logs — let it run.
+
+## Filter / scope: `prd:draft` is NEVER picked up
+
+**`prd:draft` issues are NEVER picked up by this skill.** They represent ideas captured in the agent-native repo's "inbox", not ready work. Drafts have freeform bodies, NOT Pocock's 7-section template, and have not been grilled. Dispatching the swarm against an unfinished spec is exactly the failure mode this convention exists to prevent.
+
+To promote a draft into ready work, the user runs `/grill` on the issue. The `grill-with-docs` flow rewrites the body into the Pocock 7-section template, then the user swaps the label from `prd:draft` to the repo's gate label (`ready-for-agent` by default, or the project synonym configured in `docs/agents/triage-labels.md`).
+
+When querying GitHub for the night-shift queue, ALWAYS exclude `prd:draft`. `gh` label semantics are tricky: `--label <gate>` matches issues that have the gate label, but an issue can have BOTH `prd:draft` AND the gate label (mis-labelling drift). Defence in depth:
+
+1. Pass `--label <gate>` to scope the initial query.
+2. Post-filter the JSON: drop any issue whose `labels[].name` contains `prd:draft`.
+3. Equivalently, use `gh issue list --label <gate> --search "-label:prd:draft" ...` to push the exclusion server-side.
+
+**Tip:** if you're not sure what's queued vs what's still an idea, run `/ro:list-draft-prds` first to see the drafts inbox before kicking off night shift.
 
 ## Defaults inherited from ronan-skills ≥ 1.46.1
 
@@ -69,6 +83,7 @@ For unattended overnight runs against a known, already-sliced backlog, the grill
 |---|---|
 | No gh remote | "Not in a gh-remote repo. `/ro:night-shift` requires a GitHub remote. Run `gh repo create` to add one." |
 | Zero open slices with the label | "No `<label>` issues found in this repo. Run `/ro:write-a-prd` + `/ro:slice-into-issues` to populate the backlog (or use `/agentic-e2e-flow` for the full pipeline)." |
+| Zero ready slices but `prd:draft` issues exist | "No ready slices, but you have N `prd:draft` issues sitting. Run `/ro:list-draft-prds` to see them and `/grill <N>` to promote one into a real PRD." |
 | All slices blocked | "All `<label>` slices are blocked. Blocked by: #N, #M, #K. Resolve those first or unblock manually." |
 | `--build ralph` with parallel-eligible slices | "Heads-up: most of your slices look parallel-eligible. `--build swarm` would finish faster. Continue with serial Ralph? (y/N)" — if interactive; auto-continue if `--afk` was forced via env. |
 
