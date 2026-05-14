@@ -427,6 +427,20 @@ Two follow-up lessons from running the billing-fallback path repeatedly:
 
 - **`gh pr merge --squash --admin` occasionally fails with `invalid character '{' after object key:value pair`** (gh 2.83.x + certain plugin combos). Fallback: `gh api -X PUT repos/<org>/<repo>/pulls/<pr>/merge -f merge_method=squash` performs the same merge via the raw REST endpoint and avoids whatever JSON-parse step is choking inside `gh pr merge`. Keep both forms in the local-drain script's merge step so an upstream gh-cli glitch doesn't stall the queue.
 
+### 2026-05-14 (evening): Lekkertaal swarm — 4 lessons that apply to Ralph too
+
+The planner-worker (`/ro:swarm`) ran 4 waves against `RonanCodes/lekkertaal`, 18 stories shipped. Four lessons from that run apply equally to Ralph's GitHub-source iteration when multiple stories close in the same session:
+
+- **Workers must poll CI in foreground bash, NOT via an in-context monitor.** One worker exited with the line "I'll wait for the monitor events to come through" — a hallucinated tool flow that doesn't deliver events back into the worker context. The PR sat open with conflicts, no CI run, until the planner intervened. Fix: poll `gh api repos/<owner>/<repo>/commits/<sha>/check-runs` in a `bash` loop with `sleep 30` between attempts and a hard 15-minute cap. If checks stay pending past the cap, STOP and report; do not retry blindly.
+
+- **Verify CI fired within 60s of `git push`.** Observed: a fresh branch push that did NOT trigger GitHub Actions. Force-pushing the same branch after a no-op rebase did trigger it. After every push, run `gh api .../actions/runs?head_sha=<sha>` once and check the count is > 0. If 0, nudge with `git commit --amend --no-edit && git push -f`. Root cause not isolated (possibly Actions transient or branch-protection quirk); the nudge reliably fixes it.
+
+- **Rebase onto main when it drifts; do NOT merge main into the branch.** Wave 1's prompt-caching PR (#66) rebased cleanly onto wave 1's telemetry PR (#65) that had landed mid-flight, and ended up *composing* with it (cache token counts flowed into the new telemetry sink). Better outcome than landing in isolation. For Ralph: when push rejects because main moved, `git fetch origin && git rebase origin/main && git push -f --force-with-lease`. Never `git merge main`.
+
+- **Trust local pre-push CI; skip waiting for GitHub Actions.** When the repo has a `.husky/pre-push` hook running the same gauntlet as GH CI (e.g. `pnpm test && pnpm build`), waiting for GH CI to re-run it costs 1-2 minutes per PR for zero added safety. New default: after `git push` succeeds (the hook validates), `gh api -X PUT .../pulls/<N>/merge -f merge_method=squash` immediately. GH CI still runs on the merged commit on main; if a fluke bug lands, post-merge CI flags it and the orchestrator can revert. Frequency of this in the lekkertaal 18-PR run: zero. Setup-time prompt asks the user once: "skip GH CI wait and merge immediately after a clean push? [Y/n]" — persisted in `.ralph/config.json` as `trust-local-ci: true|false`. Branch-protection rules with required-status-checks auto-override to `false`.
+
+These lessons are now baked into the Pocock pattern page: [skill-lab:agent-native-repo-pocock](https://github.com/RonanCodes/llm-wiki-skill-lab-vault/blob/main/wiki/patterns/agent-native-repo-pocock.md) and the planner-worker SKILL: see `/ro:planner-worker` § "Lessons from live runs".
+
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
 ```json

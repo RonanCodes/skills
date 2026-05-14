@@ -157,7 +157,7 @@ pnpm exec husky init
 - `lint-staged` block in `package.json` that runs `prettier --write` on the usual source globs.
 - `.husky/pre-commit` → `pnpm exec lint-staged` (auto-format staged files before every commit: eliminates the class of "CI fails on formatting" PRs).
 - `.husky/commit-msg` → `pnpm exec commitlint --edit "$1"`.
-- `.husky/pre-push` → `pnpm quality-checks` (format + lint + build + test + audit). Bypassable with `SKIP_QUALITY_CHECKS=1 git push --no-verify` for real emergencies.
+- `.husky/pre-push` → `pnpm quality-checks` (format + lint + build + test + audit). Bypassable with `SKIP_QUALITY_CHECKS=1 git push --no-verify` for real emergencies. **This hook is the load-bearing piece that lets `/ro:planner-worker` and `/ro:ralph` default to `--trust-local-ci` for this repo: a successful push means CI has effectively passed locally, so workers squash-merge immediately instead of waiting 1-2 min per PR for GitHub Actions to re-run the same gauntlet.** See `/ro:planner-worker` § "Lessons from live runs" lesson #5 for the policy.
 - `commitlint.config.mjs` enforcing the **emoji + conventional** format from `CLAUDE.md` (✨ feat / 🐛 fix / 🧪 test / 📝 docs / 🧹 chore / ♻️ refactor / 🚀 deploy / 🔧 config / ⚡ perf / 🔒 security). Use a custom parser-preset + two rules (`emoji-allowed`, `emoji-type-matches`). Do **not** use `@commitlint/config-conventional`: it doesn't know about the emoji requirement, so it'd half-enforce the convention. Copy the config verbatim from `connections-helper/commitlint.config.mjs`.
 
 After scaffolding, run `pnpm format:write` once to set the baseline so subsequent pre-commit hooks have nothing to change on untouched files.
