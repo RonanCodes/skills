@@ -392,6 +392,16 @@ What we changed in the skill (this version):
 
 This is the only sanctioned way to skip a GH Actions CI gate. Any other "CI is being slow" excuse must wait it out; the only signal that justifies `--admin` is the literal "recent account payments have failed" annotation.
 
+### 2026-05-14 (afternoon): Dataforce Phase 9 — local-CI gate refinements
+
+Two follow-up lessons from running the billing-fallback path repeatedly:
+
+- **Pre-existing main-side failures must NOT block unrelated PRs.** When the local E2E run fails on tests that ALSO fail on the current `main` (verified via `git checkout main && pnpm test:e2e <spec>` or by inspecting the test diff), file the failure as a separate issue and proceed with the merge. The local-CI gate's job is to catch *new* regressions, not to stop unrelated PRs while a pre-existing bug is unresolved. The PR comment quoting the billing block should also enumerate the pre-existing failures and link the tracking issue.
+
+- **Use `test.fixme()` to clear the queue when a deterministic regression lands on main.** When a regression lands and starts gating every subsequent PR's local-CI run, the immediate ship the orchestrator does is a one-line `test.fixme(...)` PR with a comment linking the tracking issue, so the queue can drain. The real fix follows as a separate PR. Marking with `fixme` (not `skip`) keeps the test visible in suite output as a known-broken case rather than silently absent.
+
+- **`gh pr merge --squash --admin` occasionally fails with `invalid character '{' after object key:value pair`** (gh 2.83.x + certain plugin combos). Fallback: `gh api -X PUT repos/<org>/<repo>/pulls/<pr>/merge -f merge_method=squash` performs the same merge via the raw REST endpoint and avoids whatever JSON-parse step is choking inside `gh pr merge`. Keep both forms in the local-drain script's merge step so an upstream gh-cli glitch doesn't stall the queue.
+
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
 ```json
