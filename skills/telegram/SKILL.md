@@ -17,6 +17,7 @@ Sister skill to `/ro:pushover`. Pushover is one-way push only. Telegram is bidir
 ```bash
 /ro:telegram setup              # one-time bot creation, captures token + chat_id
 /ro:telegram send <msg>         # raw send, no envelope
+/ro:telegram send-photo <path>  # send an image (auto-falls back to sendDocument on dimension limit)
 /ro:telegram notify <msg> [...] # end-of-run ping with title (mirrors pushover)
 /ro:telegram listen             # foreground long-poll loop
 /ro:telegram listen --daemon    # install launchd plist, run on login (mac)
@@ -69,6 +70,16 @@ bash skills/telegram/scripts/notify.sh "night shift done - 7 stories merged" \
 ```
 
 `notify.sh` is a thin wrapper that prefixes the title in bold (`*Title*\n\nmessage`) and uses Markdown parse mode. `send.sh` is plain text.
+
+## Send photo
+
+```bash
+bash skills/telegram/scripts/send-photo.sh ~/Pictures/foo.jpg --caption "screenshot"
+bash skills/telegram/scripts/send-photo.sh https://example.com/img.png
+bash skills/telegram/scripts/send-photo.sh ~/big.jpg --as-file  # force sendDocument
+```
+
+Telegram's `sendPhoto` compresses and caps at ~10000px combined width+height. The script auto-detects `PHOTO_INVALID_DIMENSIONS` / oversize errors and retries via `sendDocument`, which sends the file uncompressed with no dimension cap (50 MB limit). Use `--as-file` to skip the photo attempt entirely.
 
 Message envelope rules - keep it scannable, three things in order:
 
