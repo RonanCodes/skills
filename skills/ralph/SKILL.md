@@ -80,21 +80,21 @@ Background → `llm-wiki-ai-research:phase-n-ralph-loop`.
 
 ## Reviewer gate (--reviewer <model>)
 
-Pass `--reviewer opus` (or another model) to add Matt Pocock's implementer/reviewer split to every iteration.
+The reviewer gate adds Matt Pocock's implementer/reviewer split to every iteration.
 
-- **Implementer agent** (default: Sonnet). Lean prompt. Story + relevant code + tests. Pulls coding standards from `~/.claude/skills/coding-principles/` on demand only.
-- **Reviewer agent** (the model you passed). Receives the full diff, the original issue's acceptance criteria, and the complete coding-standards content inlined. Returns one of:
+- **Default: `--reviewer opus`** when running against a real backlog (`--source github:<label>` OR populated `.ralph/issues/`). Confirmed 2026-05-14: the user's Max 20x plan has Opus headroom for review, and the Factory-style flows assume Pocock split is on.
+- **Off only when:** `--plan-only`, `--mode single` (one-off story exploration), or user explicitly passes `--reviewer none`.
+- **Override the model:** pass `--reviewer sonnet`, `--reviewer haiku`, etc. when you specifically want a cheaper or cross-provider reviewer.
+
+How the split works:
+
+- **Implementer agent** (default: Sonnet 4.6). Lean prompt. Story + relevant code + tests. Pulls coding standards from `~/.claude/skills/coding-principles/` on demand only.
+- **Reviewer agent** (the model you passed; default Opus 4.7). Receives the full diff, the original issue's acceptance criteria, and the complete coding-standards content inlined. Returns one of:
   - `merge`: PR can be squash-merged.
   - `request-changes`: implementer gets the reviewer's specific notes and tries again (single retry per iteration).
   - `reject`: issue goes back to `status: ready` with the rejection note on the issue file.
 
 Background → `llm-wiki-ai-research:push-vs-pull-coding-standards`.
-
-The reviewer-gate is **off by default** (preserves existing Ralph behaviour). Turn it on when:
-
-- Running AFK and you can't review every PR yourself.
-- The codebase has explicit house-style rules a reviewer should catch.
-- You have Opus budget to spend on review (review uses more tokens than implementation in this split).
 
 Do NOT use `--reviewer` together with `--mode batched`; the implementer/reviewer split assumes fresh context per story.
 
@@ -208,6 +208,18 @@ In `--mode fresh` and `--mode single`, work on ONE story per iteration. After co
 - `fresh`: spawn a NEW subagent for the next story (until `--max-iterations` or all stories pass).
 
 In `--mode batched`, multiple stories share one context. This is the explicit opt-in for situations where the user accepts the risk in exchange for speed.
+
+## Always fire Pushover at end (load-bearing default)
+
+ANY `/ro:ralph` run against a real backlog ends with a `/ro:pushover` notification — done / paused / blocked / crashed. Confirmed 2026-05-14: autonomous coding runs always get a ping regardless of whether the user typed "AFK" or "night shift". The user can't tell from their phone if a run is still going or stopped 20 min in; a single end-of-run ping is the fix.
+
+Skip Pushover ONLY when:
+
+- `--plan-only` (nothing actually ran)
+- `--mode single` and it's the only story (one-shot exploration, not a real run)
+- User explicitly passed `--no-ping`
+
+For the firing recipe (script path, env vars, message anatomy), see `~/Dev/ronan-skills/skills/pushover/SKILL.md`. Message shape: state + one concrete metric + what Ronan needs to do next. Example: `"ralph done — 14/14 stories merged, 0 deferred, ready for visual review"`.
 
 ## Progress Report Format
 

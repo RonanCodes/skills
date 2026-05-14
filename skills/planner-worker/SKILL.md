@@ -283,13 +283,20 @@ KEEP_GOING re-invokes the planner with the judge's missing-work bullets; STOP ex
 - `--judge-agent` (Cursor-style termination)
 - `--skip-grill` (use defaults for unspecified flags)
 
-At the END of the run (success or hard cap), fire `/ro:pushover` once with a one-line summary:
+## Always fire Pushover at end (load-bearing default)
+
+ANY `/ro:planner-worker` run against a real backlog ends with a `/ro:pushover` notification — done / paused / blocked / crashed. Confirmed 2026-05-14: a multi-agent swarm IS an autonomous coding run by definition; always ping at end regardless of whether the user typed "AFK" or "night shift". The user can't tell from their phone if the swarm is still going or stopped 20 min in.
 
 ```
 night shift done: <N> stories merged, <M> stuck, <duration>
 ```
 
-Per the global Pushover firing rule for AFK runs (one notification at end, none during).
+Skip Pushover ONLY when:
+
+- `--plan-only` (planner runs but no workers dispatch)
+- User explicitly passed `--no-ping`
+
+Per the global Pushover firing rule (see `~/CLAUDE.md` § Pushover Notifications, condition 4).
 
 ## US-11: --workers N
 

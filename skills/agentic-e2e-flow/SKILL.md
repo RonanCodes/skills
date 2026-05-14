@@ -143,12 +143,14 @@ Confirmation gate: show the children's URLs as a list. User can edit titles/bodi
 
 Pick by `--build` flag:
 
-- `--build swarm` (default): `/ro:planner-worker --source github:ready-for-agent`. Parallel multi-agent build across worktrees. Best when slices are independent and you want speed.
-- `--build ralph`: `/ro:ralph --source github:ready-for-agent`. Sequential single-agent loop. Best when slices are dependency-chained (`Blocked by` graph is mostly linear) or when you want one PR open at a time.
+- `--build swarm` (default): `/ro:planner-worker --source github:ready-for-agent`. Parallel multi-agent build across worktrees. Best when slices are independent and you want speed. Opus 4.7 is the default merger.
+- `--build ralph`: `/ro:ralph --source github:ready-for-agent --reviewer opus`. Sequential single-agent loop with Pocock implementer/reviewer split, Opus 4.7 as the default reviewer. Best when slices are dependency-chained (`Blocked by` graph is mostly linear) or when you want one PR open at a time.
 
 The build skill picks `ready-for-agent`-labelled issues whose body opens with `## Parent` (slices, not the parent PRD), respects `Blocked by`, opens one PR per slice with `Closes #<slice-number>` in the PR body, and labels the issue `in-progress` while working.
 
 On each slice complete, automatic transition to gate 6 for that slice.
+
+**Always fires `/ro:pushover` at the end of gate 5** (done / paused / blocked / crashed) — confirmed 2026-05-14, autonomous build runs always get a phone ping regardless of whether the user typed "AFK" or "night shift". Skip only when `--plan-only` or `--no-ping`.
 
 ### Gate 6 — Ship
 
