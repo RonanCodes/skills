@@ -1,8 +1,8 @@
 ---
 name: clerk
-description: Wire Clerk into a TanStack Start app on Cloudflare Workers using the dedicated @clerk/tanstack-react-start package. Install, env config, clerkMiddleware in src/start.ts, ClerkProvider in __root.tsx, drop-in UI components (SignIn, SignUp, UserButton, OrganizationSwitcher), server-side auth() helper for createServerFn, useUser / useAuth hooks for client routes, Drizzle shadow user table, webhook signature verification, organisations + multi-tenancy. Default auth pick for small SaaS where speed-to-market and out-of-the-box UI matter. Use when user wants to add Clerk, add auth, wire login, sign-in component, user button, organisation switcher, small SaaS auth, fastest auth, Clerk middleware, or hosted auth UI.
+description: Wire Clerk into a TanStack Start app on Cloudflare Workers using the dedicated @clerk/tanstack-react-start package. Install, env config, clerkMiddleware in src/start.ts, ClerkProvider in __root.tsx, drop-in UI components (SignIn, SignUp, UserButton, OrganizationSwitcher), server-side auth() helper for createServerFn, useUser / useAuth hooks for client routes, Drizzle shadow user table, webhook signature verification, organisations + multi-tenancy, plus a role taxonomy (superadmin / staff / member) and requireRole() helper for gating admin routes like /styleguide. Default auth pick for small SaaS where speed-to-market and out-of-the-box UI matter. Use when user wants to add Clerk, add auth, wire login, sign-in component, user button, organisation switcher, small SaaS auth, fastest auth, Clerk middleware, hosted auth UI, or role-based access control.
 category: auth
-argument-hint: [install | add-organizations | add-webhook | open-dashboard] [--social github,google]
+argument-hint: [install | add-organizations | add-roles | add-webhook | open-dashboard] [--social github,google]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(open *) Read Write Edit
 ---
 
@@ -17,12 +17,15 @@ This is the canonical auth pick for the user's stack as of 2026-05-05. Optimised
 ## Usage
 
 ```
-/ro:clerk install                              # initial wiring (env + middleware + provider + sign-in routes)
+/ro:clerk install                              # initial wiring (env + middleware + provider + sign-in routes + roles helper)
 /ro:clerk install --social github,google       # + GitHub + Google providers
 /ro:clerk add-organizations                    # multi-tenant orgs + OrganizationSwitcher
+/ro:clerk add-roles                            # role helper only (superadmin / staff / member + requireRole)
 /ro:clerk add-webhook                          # /api/webhooks/clerk with svix signature verification
 /ro:clerk open-dashboard                       # open the Clerk dashboard for this app
 ```
+
+`add-roles` runs automatically inside `install` — it's exposed separately for retrofitting an app that already has Clerk wired but no role helper.
 
 ## Prerequisites
 
@@ -325,6 +328,100 @@ import { Protect } from '@clerk/tanstack-react-start';
 </Protect>
 ```
 
+## add-roles — role taxonomy + `requireRole()` helper
+
+Three-tier role model, Clerk-native where possible. Used to gate admin routes like `/styleguide` and any future admin panel.
+
+| Role | Source of truth | Who it's for | Why this shape |
+|---|---|---|---|
+| `superadmin` | Hardcoded `SUPERADMIN_EMAILS` constant in `src/lib/auth/roles.ts` | One or two product owners (e.g. `admin@simplicitylabs.io`) | Belt-and-braces. Even if someone edits Clerk metadata or org roles directly in the dashboard, they cannot grant themselves superadmin without a code change + deploy. The hardcoded set is the recovery surface if Clerk itself is compromised |
+| `staff` | Clerk org custom role `org:staff` | Employees / contractors who need admin-panel access but should not be able to alter billing, owners, or roles | Lives in Clerk so promotions/revocations are dashboard operations, no deploy needed |
+| `member` | Clerk default org role `org:member` | Paying customers / regular signed-in users | Default. Anyone who completes sign-up lands here. No admin routes |
+
+`admin` (mid-tier with delegation rights) is intentionally **skipped** for now — add it later when there's a real need to delegate staff promotion away from the superadmin. Most small SaaS never need this tier.
+
+### Configure the `org:staff` role in Clerk dashboard
+
+One-time setup, per environment (test + production each need it):
+
+1. Open `https://dashboard.clerk.com` → your application → **Organizations** → **Roles**
+2. Click **Create role** → key `org:staff`, name `Staff`, description `Internal team — admin panel access, no billing or role-management writes`
+3. Permissions: at minimum select `org:sys_memberships:read` so staff can see other org members. Skip `org:sys_memberships:manage` (that's the delegation power you'd grant a future `org:admin`)
+4. Save. The role is now assignable from the Members tab of any org
+
+`org:member` exists out of the box and needs no configuration.
+
+### Emit `src/lib/auth/roles.ts`
+
+```ts
+import { auth, clerkClient } from '@clerk/tanstack-react-start/server';
+
+// Hardcoded recovery list. Edits to this list require a deploy — that's the point.
+// Add the second person ONLY when there's a documented reason; superadmin is meant to be rare.
+export const SUPERADMIN_EMAILS = ['admin@simplicitylabs.io'] as const;
+
+export type Role = 'superadmin' | 'staff' | 'member';
+
+export async function getRole(): Promise<Role | null> {
+  const { isAuthenticated, userId, orgRole } = await auth();
+  if (!isAuthenticated || !userId) return null;
+
+  // Superadmin check: primary email against hardcoded set.
+  // Fetched server-side via clerkClient so a forged metadata edit can't bypass this.
+  const user = await clerkClient().users.getUser(userId);
+  const primaryEmail = user.emailAddresses.find(
+    (e) => e.id === user.primaryEmailAddressId,
+  )?.emailAddress;
+  if (primaryEmail && (SUPERADMIN_EMAILS as readonly string[]).includes(primaryEmail)) {
+    return 'superadmin';
+  }
+
+  // Clerk org custom role check.
+  if (orgRole === 'org:staff') return 'staff';
+  return 'member';
+}
+
+export async function requireRole(...allowed: Role[]): Promise<Role> {
+  const role = await getRole();
+  if (!role || !allowed.includes(role)) {
+    // 404, not 401/403: don't leak the existence of admin routes to unauthed visitors.
+    throw new Response('Not Found', { status: 404 });
+  }
+  return role;
+}
+```
+
+The 404 (vs redirect to sign-in or a 403) is deliberate. From a signed-out browser, `/styleguide` should look identical to `/anything-that-doesnt-exist`. Anyone scraping for admin surfaces gets no signal.
+
+### Use it in a route
+
+```tsx
+// src/routes/styleguide.tsx
+import { createFileRoute } from '@tanstack/react-router';
+import { createServerFn } from '@tanstack/react-start';
+import { requireRole } from '@/lib/auth/roles';
+
+const guardFn = createServerFn({ method: 'GET' }).handler(async () => {
+  return await requireRole('superadmin', 'staff');
+});
+
+export const Route = createFileRoute('/styleguide')({
+  beforeLoad: () => guardFn(),
+  component: StyleguidePage,
+});
+
+function StyleguidePage() {
+  // tokens + typography + shadcn component matrix render here
+  return <div>Style guide</div>;
+}
+```
+
+The same pattern wraps any future admin route. The `requireRole()` call is the only line that changes per surface.
+
+### Why a code-side helper instead of relying on Clerk's `<Protect>` alone
+
+`<Protect role="org:staff">` is great for UI hiding (don't render a button) but it's client-side and trivially bypassed by a determined user. `requireRole()` runs server-side in `beforeLoad`, gates the route before any data leaks, and combines org role + hardcoded superadmin in one place. Use both: `requireRole()` to gate the route, `<Protect>` to hide UI surfaces within an already-gated page.
+
 ## add-webhook
 
 Clerk pushes events on user.created, user.updated, user.deleted, organization.created, etc. Sync to a shadow `users` row in your D1 so domain tables can FK to it.
@@ -498,6 +595,7 @@ Plan one engineer-week and a week of soft migration window. Same shape as the Wo
 - `/ro:better-auth` for own-the-table cases (RLS, FKs, EU residency mandate, fully custom flows)
 - `/ro:nango` when wiring third-party integrations (Nango sessions are scoped to your authenticated end-user)
 - `/ro:stripe` when wiring payments (Stripe customers are linked to Clerk user IDs via `metadata.clerk_user_id`)
+- `/ro:design-system-create --showcase` to scaffold the `/styleguide` route that consumes `requireRole('superadmin', 'staff')`
 - `/ro:new-tanstack-app --auth` to scaffold a new app with Clerk pre-wired (default)
 - `/ro:cf-ship` to ship after wiring
 - Clerk TanStack Start docs: https://clerk.com/docs/tanstack-react-start, especially the user-data reading guide at /guides/users/reading

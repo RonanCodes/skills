@@ -1,6 +1,6 @@
 ---
 name: design-system-create
-description: Scaffold a design system in a React/Tailwind project — DESIGN_SYSTEM.md spec + typed tokens module + cva variants for core primitives (Button, Input, Card). Optionally emit a hidden /design-system showcase route. Use when a project has hand-rolled Tailwind for buttons/inputs/cards and needs a single source of truth. Pairs with /ro:design-system-audit for enforcement.
+description: Scaffold a design system in a React/Tailwind project — DESIGN_SYSTEM.md spec + typed tokens module + cva variants for core primitives (Button, Input, Card). Emits a `/styleguide` showcase route (role-gated to superadmin + staff if Clerk is wired, dev-only otherwise) so every theme/component/token is auditable in-browser. Use when a project has hand-rolled Tailwind for buttons/inputs/cards and needs a single source of truth, or just to add the styleguide route to an existing design system. Pairs with /ro:design-system-audit for enforcement.
 category: frontend
 argument-hint: [--primitives=button,input,card] [--showcase] [--showcase-only] [--typescript|--js]
 ---
@@ -20,10 +20,11 @@ The skill generates these in that order, and leaves the project with zero hex va
 ## Usage
 
 ```
-/ro:design-system-create                          # interactive — inspect repo, propose layout
+/ro:design-system-create                          # interactive — inspect repo, propose layout (showcase on by default)
 /ro:design-system-create --primitives=button,input,card
-/ro:design-system-create --showcase               # also emit /design-system hidden route
-/ro:design-system-create --showcase-only          # ONLY add showcase to an existing DS
+/ro:design-system-create --showcase               # explicit opt-in (default anyway)
+/ro:design-system-create --no-showcase            # skip the /styleguide route
+/ro:design-system-create --showcase-only          # ONLY add /styleguide to an existing DS
 /ro:design-system-create --dry-run                # show what would be written, don't write
 ```
 
@@ -54,7 +55,7 @@ Via `AskUserQuestion`, confirm:
 3. **Elevation style** — border-only (NYT/modern flat), or borders + shadows (material)?
 4. **Active-state feedback** — `translate-y-px` + darker bg (recommended), or fade only?
 5. **Primitives to generate** — Button, Input, Card, Badge, Dialog (default: Button + Input + Card)
-6. **Showcase route** — generate a hidden `/design-system` page that renders every token + primitive? (default: yes — it's the cheapest way to keep the spec honest)
+6. **Showcase route** — generate a `/styleguide` page that renders every token + primitive? (default: yes — it's the cheapest way to keep the spec honest). If Clerk is detected, the route is gated to `superadmin + staff`; otherwise it's dev-only (404 when `import.meta.env.PROD`)
 
 ### 3. Write the CSS layer
 
@@ -195,25 +196,67 @@ The six core rules (lift verbatim unless the project has a well-reasoned deviati
 5. Colour comes from tokens, never from hex. If you need a colour the theme doesn't have, add a token; don't inline.
 6. One radius scale. `rounded-sm` (badges), `rounded-md` (buttons/inputs), `rounded-lg`/`xl` (cards), `rounded-full` (pills). No `rounded-[7px]` one-offs.
 
-### 7. Showcase route (optional, recommended)
+### 7. Styleguide route (default-on)
 
-If the user opted in (or `--showcase` / `--showcase-only`), emit a hidden page that renders every token and primitive so the system is auditable in-browser across themes.
+Emit a `/styleguide` page that renders every token and primitive so the system is auditable in-browser across themes. Default-on; use `--no-showcase` to skip.
+
+**Route path:** `/styleguide`. Picked over `/design-system` and `/showcase` because it's the term frontend devs already search for, reads cleanly as a sidebar nav entry the day a real admin panel exists, and doesn't suggest the route is dev-only (it's role-gated in production by design, see below).
 
 **Where to write it:**
-- TanStack Router file-based: `src/routes/design-system.tsx` (route = `/design-system`)
-- Next.js app router: `app/design-system/page.tsx`
-- React Router / Vite: `src/pages/DesignSystem.tsx` + register in the router manually
+- TanStack Router file-based: `src/routes/styleguide.tsx` (route = `/styleguide`)
+- Next.js app router: `app/styleguide/page.tsx`
+- React Router / Vite: `src/pages/Styleguide.tsx` + register in the router manually
 - If the router can't be detected, abort this step and tell the user where to drop the file
 
+**Gating — role-based if Clerk is wired, dev-only otherwise:**
+
+Detect Clerk by looking for `@clerk/tanstack-react-start` in `package.json` AND a `src/lib/auth/roles.ts` file (the `requireRole()` helper emitted by `/ro:clerk add-roles`).
+
+- **If both are present (preferred):** wire the route to `requireRole('superadmin', 'staff')`. Production-safe — only the superadmin email + Clerk `org:staff` members can view. Members and signed-out visitors get a 404 (not a redirect — don't leak the existence of admin routes).
+
+  ```tsx
+  // src/routes/styleguide.tsx
+  import { createFileRoute } from '@tanstack/react-router';
+  import { createServerFn } from '@tanstack/react-start';
+  import { requireRole } from '@/lib/auth/roles';
+
+  const guardFn = createServerFn({ method: 'GET' }).handler(async () => {
+    return await requireRole('superadmin', 'staff');
+  });
+
+  export const Route = createFileRoute('/styleguide')({
+    beforeLoad: () => guardFn(),
+    component: StyleguidePage,
+  });
+  ```
+
+- **If Clerk is wired but `src/lib/auth/roles.ts` is missing:** prompt the user to run `/ro:clerk add-roles` first (one command, takes <30s), then emit the gated route. Do NOT silently skip the gate — that's the failure mode where an unguarded admin surface ships to production.
+
+- **If Clerk is not wired:** fall back to a dev-only gate. The route 404s in production builds, renders in dev. This is the "scaffold without auth" path; the moment auth lands, swap to the role-gated form.
+
+  ```tsx
+  // src/routes/styleguide.tsx — no-auth fallback
+  import { createFileRoute } from '@tanstack/react-router';
+
+  export const Route = createFileRoute('/styleguide')({
+    beforeLoad: () => {
+      if (import.meta.env.PROD) {
+        throw new Response('Not Found', { status: 404 });
+      }
+    },
+    component: StyleguidePage,
+  });
+  ```
+
 **Rules for the showcase file:**
-- Never link to it from nav, footer, or sitemap — discoverable only via URL
+- Never link to it from public nav, footer, or sitemap. Linking from an internal admin panel (once one exists) is fine because that panel is itself gated.
 - Use ONLY the project's own primitives (Button, Input, Badge, Card) and tokens (TYPOGRAPHY, RADIUS, ELEVATION, SPACING, Z) — no hand-rolled styles. The showcase is itself the first audit subject.
-- Include a theme-picker at the top that calls the project's `setTheme` (detect from `src/lib/themes/index.ts` — if absent, skip the picker silently)
+- Include a light/dark toggle at the top (mandatory) plus a multi-theme picker if `src/lib/themes/index.ts` exists. The toggle lives on-page so you can A/B both modes side-by-side without leaving the route.
 - Every section pairs a live example with the token/variant name it uses, so copy-paste works
 
 **Required sections (in order):**
 
-1. **Header** — page title, "hidden route" note, theme-picker (if themes exist)
+1. **Header** — page title, current role badge (`superadmin` / `staff` / `dev-mode`), light/dark toggle (mandatory), multi-theme picker (if themes exist)
 2. **Colour tokens** — render every semantic pair (`bg-background`/`text-foreground`, `bg-card`/`text-card-foreground`, etc.) as labelled swatches. Names match the `@theme inline` bridge.
 3. **Typography** — one row per `TYPOGRAPHY.*` key, token name on the left, rendered sample on the right (use "The quick brown fox…")
 4. **Radius** — a square for each `RADIUS.*` value with the key as caption
@@ -229,11 +272,12 @@ If the user opted in (or `--showcase` / `--showcase-only`), emit a hidden page t
 14. **Footer** — link to `DESIGN_SYSTEM.md` (relative to repo host if known)
 
 **Why it earns its keep:**
-- New theme? Load `/design-system` and eyeball every primitive in 30 seconds
+- New theme? Load `/styleguide` and eyeball every primitive in 30 seconds
 - Adding a component? Copy the section pattern, stay consistent
 - Audit blind spot? If a state looks wrong here, it looks wrong everywhere — first place reviewers check
+- Onboarding a designer or staff member to a live deploy? Promote them to `org:staff` in Clerk, share the `/styleguide` link, no extra access needed
 
-See `docs/showcase-template.tsx` in the repo where this skill was developed (connections-helper `src/routes/design-system.tsx`) for a canonical reference implementation.
+See `docs/showcase-template.tsx` in the repo where this skill was developed (connections-helper `src/routes/styleguide.tsx`) for a canonical reference implementation.
 
 ### 8. Report
 
@@ -249,10 +293,10 @@ Created:
   src/components/ui/button.tsx        — cva variants with state table
   src/components/ui/input.tsx         — matches button state treatment
   src/components/ui/card.tsx          — elevation tiers
-  src/routes/design-system.tsx        — hidden /design-system showcase (if --showcase)
+  src/routes/styleguide.tsx           — /styleguide showcase (role-gated to superadmin+staff if Clerk wired, dev-only otherwise)
 
 Next:
-  1. Visit /design-system in dev to verify the scaffold renders cleanly across themes
+  1. Visit /styleguide in dev to verify the scaffold renders cleanly across themes (sign in as superadmin or an org:staff member if Clerk is wired)
   2. Run /ro:design-system-audit to find callers that need migrating
   3. Review DESIGN_SYSTEM.md — deviate where your brand demands it
   4. Commit the scaffold before starting migrations
@@ -277,3 +321,4 @@ Next:
 - `/ro:design-system-audit` — run after scaffolding to find callers that still violate the rules
 - `/ro:frontend-design` — broader UI review skill; this one is narrower and more actionable
 - `/ro:coding-principles` — simplicity principles that informed the "rules not laws" choice
+- `/ro:clerk add-roles` — emits the `requireRole()` helper that `/styleguide` consumes when Clerk is wired

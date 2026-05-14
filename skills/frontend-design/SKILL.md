@@ -28,6 +28,12 @@ Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
 
 For greenfield UI mockups, **Claude Design** is the primary surface for direction-setting. **Pencil** ([pencil.dev](https://pencil.dev/)) is the second-opinion source when a layout needs cross-checking. Once a direction is locked, bring the Claude Design link (or Pencil export) into this skill as a reference pin and build from it inside the repo with shadcn/ui + Tailwind. For marketing imagery (OG cards, hero illustrations, social), use `/ro:generate-image` (Gemini Nano Banana 2), not GPT image gen.
 
+## Check for `/styleguide` first
+
+Before designing anything new in an existing app, check whether `src/routes/styleguide.tsx` (or `app/styleguide/page.tsx` for Next) exists. If it does, **load it in the dev server and audit the current tokens + primitives there first** — the answer to "what colour for the danger button" usually already lives in the showcase. If the route is missing, offer to run `/ro:design-system-create --showcase-only` to add it (one command, ~30s, no overwrite risk). The styleguide is the first audit subject and the cheapest way to keep the design system honest as new components land.
+
+Apps scaffolded with `/ro:new-tanstack-app` ship with `/styleguide` by default, role-gated to `superadmin + staff` when Clerk is wired.
+
 ## Frontend Aesthetics Guidelines
 
 Focus on:

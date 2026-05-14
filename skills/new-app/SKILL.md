@@ -17,6 +17,8 @@ If you already know which framework you want, skip this and call the leaf skill 
 
 This skill is the "I'm not sure" entry point.
 
+**Every dispatch path scaffolds a `/styleguide` route by default** (role-gated to `superadmin + staff` when auth is wired, dev-only otherwise). Downstream skills like `/ro:new-tanstack-app` and `/ro:new-astro-app` invoke `/ro:design-system-create --showcase` as part of their flow; this orchestrator doesn't need to ask about it.
+
 ## Usage
 
 ```

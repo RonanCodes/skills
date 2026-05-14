@@ -2,7 +2,7 @@
 name: new-tanstack-app
 description: Orchestrate scaffolding a new TanStack Start app on the canonical stack (TanStack Start + Drizzle + Cloudflare Workers + shadcn/ui). Dispatches to sub-skills for DB (D1 / Neon), auth (Clerk by default for small SaaS; WorkOS AuthKit as alt-at-scale for B2B 100K+ MAU; Better Auth as alt for owns-the-table / EU-mandate / custom-flows), observability (PostHog, Sentry, UptimeRobot), DNS, ship; plus optional agentic runtime (XState + Vercel AI SDK, LangGraph Phase-2 POA) and Knock notifications. Use when user wants to start, create, scaffold, bootstrap, or kick off a new TanStack Start project / small app / side project.
 category: project-setup
-argument-hint: <app-name> [--db d1|neon] [--auth] [--posthog] [--sentry] [--uptime] [--agent xstate|langgraph] [--ai-sdk] [--knock] [--domain <host>] [--skip-deploy] [--skip-ci] [--interactive]
+argument-hint: <app-name> [--db d1|neon] [--auth] [--posthog] [--sentry] [--uptime] [--agent xstate|langgraph] [--ai-sdk] [--knock] [--domain <host>] [--skip-deploy] [--skip-ci] [--skip-styleguide] [--interactive]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(corepack *) Bash(mkdir *) Bash(cd *) Bash(cp *) Read Write Edit
 ---
 
@@ -39,6 +39,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
   4. Testing + API docs                → /ro:testing-stack install
   5. Code hygiene: prettier + eslint + husky + commitlint (inline)
   6. --auth              → /ro:clerk install (default); --auth=workos → /ro:workos install (B2B at 100K+ MAU); --auth=better-auth → /ro:better-auth install (owns-the-table / EU-mandate / custom-flows)
+  6a. Design system + /styleguide route → /ro:design-system-create --showcase (default-on; consumes requireRole() if --auth, dev-only fallback otherwise)
   7. --ai-sdk            → install `ai` + `@ai-sdk/anthropic` + `@ai-sdk/openai` + `@ai-sdk/google`; scaffold `lib/models.ts`
   8. --agent xstate      → install `xstate` + `@xstate/react`; scaffold a reference `machines/exampleMachine.ts` + actor using AI SDK
   8b. --agent langgraph  → Phase-2 POA (not yet auto-scaffolded) — prints migration POA instead
@@ -191,6 +192,23 @@ Afterwards (WorkOS path):
 
 Afterwards (Better Auth path):
 - Remind user: `BETTER_AUTH_SECRET` generated via `openssl rand -base64 32` lives in `.dev.vars` + `wrangler secret put`, NOT in `~/.claude/.env`.
+
+### 6a. Design system + `/styleguide` route (always, unless `--skip-styleguide`)
+
+Delegate to `/ro:design-system-create --showcase`. Runs **after** auth so the role helper (`src/lib/auth/roles.ts`) emitted by `/ro:clerk install` is on disk by the time the styleguide route gets wired.
+
+What you get:
+
+- `src/design-system/tokens.ts` — typed TYPOGRAPHY, SPACING, RADIUS, ELEVATION, Z
+- `DESIGN_SYSTEM.md` at repo root — rules + state tables + review checklist
+- cva-based variants on the shadcn primitives (Button, Input, Card)
+- `src/routes/styleguide.tsx` — the role-gated showcase page:
+  - **With `--auth`:** gated via `requireRole('superadmin', 'staff')`. Returns 404 to anyone else. Superadmin email is hardcoded (`admin@simplicitylabs.io` by default — edit `SUPERADMIN_EMAILS` in `src/lib/auth/roles.ts` per app). Staff = Clerk org members with the custom `org:staff` role (one-time dashboard setup, see `/ro:clerk` § add-roles).
+  - **Without `--auth`:** dev-only fallback. The route renders in `pnpm dev` and 404s in production builds.
+
+Skip with `--skip-styleguide` if (and only if) the user explicitly doesn't want it. Default is on because the styleguide is the cheapest design-system audit surface and the natural landing pad for any future admin panel.
+
+Mention to the user post-scaffold: once they create the first Clerk org and want a teammate (e.g. Taskforce employee) to view `/styleguide` on production, promote them to `org:staff` in the Clerk dashboard. No deploy needed.
 
 ### 7a. `--ai-sdk` → Vercel AI SDK (provider abstraction)
 
@@ -450,7 +468,8 @@ Print the following after everything runs:
 
 - App name + directory
 - DB: D1 database ID, OR Neon project ID + branch
-- Auth: enabled / disabled
+- Auth: enabled / disabled (Clerk / WorkOS / Better Auth)
+- Design system: tokens + DESIGN_SYSTEM.md emitted, `/styleguide` route at gate=`requireRole(superadmin,staff)` / `dev-only`
 - Agent runtime: XState (scaffolded reference machine) / LangGraph POA printed / none
 - LLM provider abstraction: Vercel AI SDK installed + configured providers
 - Notifications: Knock workspace wired / Resend-only / none
@@ -477,5 +496,6 @@ Print the following after everything runs:
 - `/ro:migrate-to-tanstack` — port an existing app to this stack (the migration sibling)
 - `/ro:neon` — Postgres wiring
 - `/ro:clerk` (default auth), `/ro:workos` (alt-at-scale auth), `/ro:better-auth` (alt for owns-the-table cases), `/ro:posthog`, `/ro:sentry`, `/ro:uptimerobot`, `/ro:cloudflare-dns`
+- `/ro:design-system-create` — emits `/styleguide` showcase route + DESIGN_SYSTEM.md spec + cva variants (invoked by step 6a)
 - `/ro:cf-ship` — the deploy pipeline
 - `/ro:commit` — emoji conventional commits
