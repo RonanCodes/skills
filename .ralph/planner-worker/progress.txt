@@ -1,0 +1,24 @@
+# planner-worker skill build progress
+
+[2026-05-14T10:11:00Z] orchestrator started
+[2026-05-14T10:12:00Z] US-0 PASS interactive config grilling section
+[2026-05-14T10:12:30Z] US-1 PASS planner section + planner-prompt.sh
+[2026-05-14T10:13:00Z] US-2 PASS confirm backlog section
+[2026-05-14T10:13:30Z] US-3 PASS worker dispatch section + worker-prompt.sh
+[2026-05-14T10:14:00Z] US-4 PASS DoD detection + override
+[2026-05-14T10:14:30Z] US-5 PASS merger agent section + merger-prompt.sh
+[2026-05-14T10:15:00Z] US-6 PASS escalation section
+[2026-05-14T10:15:30Z] US-7 PASS worker failure -> re-plan
+[2026-05-14T10:16:00Z] US-8 PASS --github flag
+[2026-05-14T10:16:30Z] US-9 PASS --judge-agent flag + judge-prompt.sh
+[2026-05-14T10:17:00Z] US-10 PASS --afk
+[2026-05-14T10:17:30Z] US-11 PASS --workers N
+[2026-05-14T10:18:00Z] US-12 PASS --resume
+[2026-05-14T10:18:30Z] US-13 PASS live status + logs
+[2026-05-14T10:19:00Z] US-14 PASS postmortem on exit
+[2026-05-14T10:19:30Z] orchestrator STALLED before committing
+[2026-05-14T12:30:00Z] recovered + manually committed by main agent
+[2026-05-14T12:30:30Z] US-17 PASS /ro:swarm alias skill added
+# DEFERRED (not blocking; can be added in follow-up):
+#   US-15 — skill page in vaults/llm-wiki-skill-lab/wiki/skills/planner-worker.md
+#   US-16 — first real run against lekkertaal (will happen organically next time)
