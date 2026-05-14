@@ -1,9 +1,9 @@
 ---
 name: write-a-prd
-description: Generate a PRD through an interactive interview. Quick mode writes prd.json directly, plan mode creates a reviewable plan.md first. Use when user wants to write a PRD, plan a feature, create user stories, or start a Ralph project.
+description: Generate a PRD through an interactive interview. In repos with a gh remote, defaults to publishing the PRD as a GitHub issue using Matt Pocock's 7-section template with ready-for-agent label (agent-native repo pattern). Falls back to local prd.json for repos without a gh remote. Use when user wants to write a PRD, plan a feature, create user stories, or start a Ralph project.
 category: development
-argument-hint: [--quick | --plan] <feature-name>
-allowed-tools: Read Write Edit Glob Grep
+argument-hint: [--quick | --plan] [--target gh|local] [--label <label>] <feature-name>
+allowed-tools: Read Write Edit Glob Grep Bash
 content-pipeline:
   - pipeline:input
   - platform:agnostic
@@ -12,14 +12,76 @@ content-pipeline:
 
 # Write a PRD
 
-Interactive interview that produces a `.ralph/prd.json` ready for the Ralph loop.
+Interactive interview that produces a PRD ready for slicing into vertical-slice issues and consumption by a Ralph-style or planner-worker autonomous loop.
+
+## Output target — auto-detect
+
+Run `gh repo view --json url 2>/dev/null` to detect whether a GitHub remote is configured.
+
+- **GH remote present** → default to `--target gh`: publish the PRD as a GitHub issue using the agent-native repo template (below). This is the canonical mode and pairs with `/ro:slice-into-issues --target gh` and `/agentic-e2e-flow`.
+- **No GH remote** → fall back to `--target local`: write `.ralph/prd.json` (legacy default).
+- `--target gh|local` flag overrides auto-detection.
+
+When using `--target gh`, after the interview, render the PRD content into the body template and publish via:
+
+```bash
+gh issue create \
+  --title "<feature short title>" \
+  --label "${LABEL:-ready-for-agent}" \
+  --body-file -    # piped from the rendered template
+```
+
+Apply the project's `ready-for-agent` synonym if one is configured (e.g., `Sandcastle` in `mattpocock/course-video-manager`). Detect via `gh label list --json name,description --jq '.[] | select(.description | contains("agent"))'` or by checking `docs/agents/triage-labels.md` for the project-local label name. `--label <name>` flag overrides.
+
+## GitHub-issue body template (Matt Pocock's 7-section PRD)
+
+```md
+## Problem Statement
+
+The problem the user is facing, from the user's perspective.
+
+## Solution
+
+The solution to the problem, from the user's perspective.
+
+## User Stories
+
+A long, numbered list. Each one shaped:
+
+1. As a <actor>, I want <feature>, so that <benefit>
+2. ...
+
+Be extensive. Cover all aspects of the feature.
+
+## Implementation Decisions
+
+Modules to build or modify (favour deep modules). Interfaces. Technical clarifications. Architectural decisions. Schema changes. API contracts. Specific interactions.
+
+Do NOT include file paths or code snippets — they go stale fast. Exception: a prototype-derived snippet (state machine, reducer, schema, type shape) that encodes a decision more precisely than prose can. Trim to the decision-rich parts.
+
+## Testing Decisions
+
+What makes a good test for this feature (external behaviour, not implementation). Which modules will be tested. Prior art for similar tests in the codebase.
+
+## Out of Scope
+
+What this PRD explicitly does NOT cover.
+
+## Further Notes
+
+Anything else worth recording.
+```
+
+Output: the new GH issue number. Call it `$PARENT`. Hand off to `/ro:slice-into-issues` which will create child issues referencing `#$PARENT` via `## Parent\n\n#$PARENT`.
 
 ## Usage
 
 ```
-/write-a-prd --quick my-feature    # Fast: interview -> prd.json
-/write-a-prd --plan my-feature     # Thorough: interview -> plan.md -> review -> prd.json
-/write-a-prd my-feature            # Defaults to --quick
+/write-a-prd --quick my-feature                # Auto-detect target; in gh repo -> publish as issue
+/write-a-prd --plan my-feature                 # Same auto-detect; --plan adds reviewable plan.md gate
+/write-a-prd --target local my-feature         # Force local .ralph/prd.json (legacy default)
+/write-a-prd --target gh --label Sandcastle my-feature   # Force GH, custom label
+/write-a-prd my-feature                        # Defaults to --quick + auto-detect
 ```
 
 ## --quick Mode

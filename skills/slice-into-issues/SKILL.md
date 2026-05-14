@@ -1,14 +1,80 @@
 ---
 name: slice-into-issues
-description: Take a PRD and slice it into vertical-slice user-story issues that an agent can pull from a Kanban backlog. Proposes a module map first (favours deep modules), then emits one markdown file per slice to .ralph/issues/ (or the project's configured directory). Use after /write-a-prd or /generate-spec, before /ralph. Triggers on "slice the prd", "make issues", "break this into stories", "kanban from prd", "vertical slice this".
+description: Take a PRD (parent GitHub issue OR local prd.json) and slice it into vertical-slice user-story issues that an agent can pull from a Kanban backlog. In repos with a gh remote, defaults to publishing each slice as a GitHub issue referencing the parent via `## Parent\n\n#<N>`, with ready-for-agent label (agent-native repo pattern). Falls back to local .ralph/issues/*.md for repos without a gh remote. Use after /write-a-prd or /generate-spec, before /ralph or /ro:planner-worker. Triggers on "slice the prd", "make issues", "break this into stories", "kanban from prd", "vertical slice this".
 category: workflow
-argument-hint: [--prd <path>] [--out <dir>] [--max-slices <N>]
+argument-hint: [--prd <path-or-issue-number>] [--target gh|local] [--label <label>] [--out <dir>] [--max-slices <N>]
 allowed-tools: Bash Read Write Glob Grep AskUserQuestion
 ---
 
 # Slice Into Issues
 
 The missing step between a PRD and a Ralph loop. Matt Pocock's workshop makes this an explicit phase: read the PRD, propose what modules to create or change, then break the work into vertical slices that each touch all the layers they need.
+
+## Output target — auto-detect
+
+Run `gh repo view --json url 2>/dev/null` to detect whether a GitHub remote is configured.
+
+- **GH remote present** → default to `--target gh`: publish each slice as a child GitHub issue referencing the parent PRD issue. This is the canonical mode and pairs with `/ro:write-a-prd --target gh` and `/agentic-e2e-flow`.
+- **No GH remote** → fall back to `--target local`: write `.ralph/issues/*.md` (legacy default).
+- `--target gh|local` flag overrides auto-detection.
+
+### Resolving the parent PRD
+
+The `--prd` argument:
+
+- An integer (e.g., `--prd 798`) → treat as a GH issue number; `gh issue view 798 --json title,body` to load.
+- A path (e.g., `--prd .ralph/prd.json` or `--prd docs/prds/foo.md`) → load from disk.
+- Omitted → if `--target gh`, list open issues with `ready-for-agent` label whose bodies open with `## Problem Statement` (the parent shape) and ask the user to pick. If `--target local`, fall back to the legacy default of `.ralph/prd.json` or newest in `docs/prds/`.
+
+### Publishing slices to GH
+
+For each approved slice, in dependency order (blockers first):
+
+```bash
+gh issue create \
+  --title "<slice title>" \
+  --label "${LABEL:-ready-for-agent}" \
+  --body-file -
+```
+
+Body template — Matt Pocock's slice shape:
+
+```md
+## Parent
+
+#$PARENT
+
+## What to build
+
+<concise end-to-end description; cover behaviour, not layer-by-layer implementation>
+
+## Acceptance criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Blocked by
+
+- #$BLOCKER_ISSUE_NUMBER     ← or "None - can start immediately"
+```
+
+Publishing in dependency order means earlier slices' real issue numbers can be referenced in later slices' `Blocked by` sections. Capture each created issue number as you go.
+
+Apply the project's `ready-for-agent` synonym if one is configured (check `docs/agents/triage-labels.md` for the project-local name, e.g., `Sandcastle`). `--label <name>` flag overrides.
+
+After publishing, comment on the parent PRD issue:
+
+```bash
+gh issue comment $PARENT --body "Sliced into:
+- #$SLICE_1 — <title>
+- #$SLICE_2 — <title>
+..."
+```
+
+Do NOT close or modify the parent PRD issue body.
+
+Hand off to `/agentic-e2e-flow` gate 5 (build) or invoke `/ro:ralph --source github:ready-for-agent` directly.
 
 ## Why slicing matters
 

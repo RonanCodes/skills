@@ -1,14 +1,39 @@
 ---
 name: ralph
-description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/. Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged), validates, and updates progress. Supports named PRDs via --prd <name>, sequential PRD or Kanban-style issue files via --kanban, and a reviewer-gate (Matt Pocock implementer/reviewer split) via --reviewer <model>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
+description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/ OR from GitHub issues labelled `ready-for-agent` (agent-native repo pattern). Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged with `Closes #N` for GH source), validates, and updates progress. Supports named PRDs via --prd <name>, Kanban-style local files via --kanban, GitHub-issues source via --source github:<label>, and a reviewer-gate (Matt Pocock implementer/reviewer split) via --reviewer <model>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
 category: development
-argument-hint: [--prd <name>] [--mode fresh|batched|single] [--kanban] [--reviewer <model>] [--plan-only] [--max-iterations <N>]
+argument-hint: [--prd <name>] [--source local|github:<label>] [--mode fresh|batched|single] [--kanban] [--reviewer <model>] [--plan-only] [--max-iterations <N>]
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 ---
 
 # Ralph Loop
 
-Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/`, implements it in a **fresh isolated context** by default, opens ONE PR per story, validates, commits, and updates progress.
+Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/` OR from GitHub issues with a configured label (agent-native repo pattern; see `--source github:<label>`), implements it in a **fresh isolated context** by default, opens ONE PR per story, validates, commits, and updates progress.
+
+## Source — auto-detect
+
+The `--source` flag picks where stories come from:
+
+- `--source local` (default when no gh remote, or when `.ralph/` already populated): reads from `.ralph/prd.json` (sequential) or `.ralph/issues/*.md` (with `--kanban`). Legacy behaviour.
+- `--source github:<label>` (default when a gh remote is configured and `.ralph/` is empty): reads from open GitHub issues with the given label, e.g. `--source github:ready-for-agent` (or the project's synonym such as `Sandcastle`).
+
+Auto-detect order: if `--source` is omitted, run `gh repo view --json url 2>/dev/null` and `ls .ralph/issues/ 2>/dev/null`. If a gh remote exists AND `.ralph/` is empty/absent → `--source github:ready-for-agent` is the default. If `.ralph/` is populated → `--source local` to honour existing work in flight. User can always override.
+
+### GitHub-source iteration
+
+When `--source github:<label>` is active, each iteration:
+
+1. `gh issue list --label <label> --state open --json number,title,body,labels`
+2. Filter to **slice** issues (body opens with `## Parent\n\n#<N>`) — skip **parent PRD** issues (body opens with `## Problem Statement`). Parents are tracking issues, not work.
+3. Filter to issues with no unsatisfied `Blocked by` (parse `## Blocked by` section, treat closed referenced issues as satisfied).
+4. Pick the highest-priority unblocked slice (tie-break: lowest issue number).
+5. Add label `in-progress` to the chosen issue (creates label if missing).
+6. Implement in a fresh subagent context (same PR-per-story discipline as `local` mode).
+7. Open the PR with `Closes #<slice-number>` in the body — GitHub auto-closes the slice on merge.
+8. Remove `in-progress` label on PR open; the slice auto-closes on merge.
+9. When the last slice for a parent PRD closes, comment "All slices merged" on the parent and close it.
+
+`Closes #N` in the PR body is the load-bearing convention — without it, slices don't auto-close and the queue silently grows stale.
 
 ## Quick Start
 
