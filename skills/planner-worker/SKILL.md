@@ -1,6 +1,6 @@
 ---
 name: planner-worker
-description: Multi-agent coding swarm. Planner / worker / merger over git worktrees on the Max plan. Reads a grilled PRD from `.ralph/<name>/prd.md`, dispatches parallel Claude Code Agent workers (one per vertical-slice issue in its own git worktree), and a merger Agent reviews + merges clean work back to the target branch. Alias `/ro:swarm`. Use when you want to kick off the swarm, run a planner+worker swarm, parallel-implement a backlog, run an AFK night-shift coding session, or scale a PRD beyond what a single Ralph loop can chew through.
+description: Multi-agent coding swarm. Planner / worker / merger over git worktrees on the Max plan. Reads a grilled PRD from `.ralph/<name>/prd.md`, dispatches parallel Claude Code Agent workers (one per vertical-slice issue in its own git worktree), and a merger Agent reviews + merges clean work back to the target branch. Defers to /ro:repo-mode for `--github` default — `personal` repos open PRs and create issues; `work` repos run fully local with no GH side-effects so the swarm stays invisible to the work GH/Jira/ADO project. Alias `/ro:swarm`. Use when you want to kick off the swarm, run a planner+worker swarm, parallel-implement a backlog, run an AFK night-shift coding session, or scale a PRD beyond what a single Ralph loop can chew through.
 category: development
 argument-hint: [--prd <name>] [--workers <N>] [--github] [--judge-agent] [--afk] [--auto-approve] [--skip-grill] [--staging-branch <name>] [--resume] [--max-cycles <N>] [--max-runtime <duration>] [--unsafe-many]
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
@@ -61,8 +61,9 @@ Unless `--skip-grill` (or `--afk` which implies it) is passed, the skill opens w
 Order and project-awareness rules:
 
 1. **GitHub issues + PRs for this run?**
+   - Resolve repo mode first via the 4-line snippet from `/ro:repo-mode`. If `mode == work` → recommend "no" (hard rule, do NOT prompt; work-mode repos must stay invisible to the work GH/Jira/ADO project). If `mode == personal` → recommend "yes" when a gh remote resolves. If `mode == unset` → run the first-run prompt from `/ro:repo-mode` § "First-run prompt", persist, then re-resolve.
    - Probe: `gh repo view --json visibility,nameWithOwner 2>/dev/null`
-   - Recommend "yes" when a remote resolves and visibility is `PRIVATE`; "no" when no remote configured or repo is public + you don't want noise
+   - For `personal` mode: recommend "yes" when a remote resolves and visibility is `PRIVATE`; "no" when no remote configured or repo is public + you don't want noise.
    - CLI equivalent: `--github`
 
 2. **Worker count?**
@@ -99,7 +100,7 @@ Order and project-awareness rules:
 
 Each answer is echoed back as the CLI flag the user could have passed next time, e.g. "noted, equivalent to `--workers 5`". CLI flags supplied at invocation skip their corresponding prompt.
 
-`--skip-grill` short-circuits to defaults: `workers=3`, `github=false`, `mode=interactive`, `merge-target=current-branch`, `worker-model=sonnet`, `judge-agent=false`, `trust-local-ci=true`.
+`--skip-grill` short-circuits to defaults: `workers=3`, `github=<true if repo-mode=personal AND gh remote present, else false>`, `mode=interactive`, `merge-target=current-branch`, `worker-model=sonnet`, `judge-agent=false`, `trust-local-ci=true`. The `github` default specifically defers to `/ro:repo-mode` — work-mode repos always run with `github=false` so nothing leaks to the work GH/Jira/ADO project. If repo-mode is `unset` and `--skip-grill` is in play (e.g. `--afk`), default `github=false` (safe failure mode); a separate session will catch the unset state and prompt.
 
 ## US-1: Planner
 

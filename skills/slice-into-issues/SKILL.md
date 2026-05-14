@@ -1,6 +1,6 @@
 ---
 name: slice-into-issues
-description: Take a PRD (parent GitHub issue OR local prd.json) and slice it into vertical-slice user-story issues that an agent can pull from a Kanban backlog. In repos with a gh remote, defaults to publishing each slice as a GitHub issue referencing the parent via `## Parent\n\n#<N>`, with ready-for-agent label (agent-native repo pattern). Falls back to local .ralph/issues/*.md for repos without a gh remote. Use after /write-a-prd or /generate-spec, before /ralph or /ro:planner-worker. Triggers on "slice the prd", "make issues", "break this into stories", "kanban from prd", "vertical slice this".
+description: Take a PRD (parent GitHub issue OR local prd.json) and slice it into vertical-slice user-story issues that an agent can pull from a Kanban backlog. Defers to /ro:repo-mode for output target — `personal` repos publish each slice as a child GitHub issue referencing the parent via `## Parent\n\n#<N>` with ready-for-agent label; `work` repos write gitignored `.ralph/issues/*.md` so nothing leaks to the work GH/Jira/ADO project. First-run prompt picks the mode and persists per-repo. Use after /write-a-prd or /generate-spec, before /ralph or /ro:planner-worker. Triggers on "slice the prd", "make issues", "break this into stories", "kanban from prd", "vertical slice this".
 category: workflow
 argument-hint: [--prd <path-or-issue-number>] [--target gh|local] [--label <label>] [--out <dir>] [--max-slices <N>]
 allowed-tools: Bash Read Write Glob Grep AskUserQuestion
@@ -10,13 +10,23 @@ allowed-tools: Bash Read Write Glob Grep AskUserQuestion
 
 The missing step between a PRD and a Ralph loop. Matt Pocock's workshop makes this an explicit phase: read the PRD, propose what modules to create or change, then break the work into vertical slices that each touch all the layers they need.
 
-## Output target — auto-detect
+## Output target — repo-mode aware
 
-Run `gh repo view --json url 2>/dev/null` to detect whether a GitHub remote is configured.
+Resolution order (highest precedence first):
 
-- **GH remote present** → default to `--target gh`: publish each slice as a child GitHub issue referencing the parent PRD issue. This is the canonical mode and pairs with `/ro:write-a-prd --target gh` and `/agentic-e2e-flow`.
-- **No GH remote** → fall back to `--target local`: write `.ralph/issues/*.md` (legacy default).
-- `--target gh|local` flag overrides auto-detection.
+1. Explicit `--target gh|local` flag — always wins.
+2. **Repo mode** — defer to `/ro:repo-mode` resolution. Per-repo `.claude/repo-mode`, then global `~/.claude/repo-mode`. If `personal` → `--target gh` (publish each slice as a child GH issue). If `work` → `--target local` (write to `.ralph/issues/*.md`, fully gitignored, nothing leaks to the work GH/Jira/ADO project).
+3. If repo mode is `unset`: run the **first-run prompt** described in `/ro:repo-mode` § "First-run prompt". Fires once per repo, then never again.
+4. If repo mode resolves but no `gh` remote exists → force `--target local` regardless of mode.
+
+Resolver snippet (same 4 lines documented in `/ro:repo-mode`):
+
+```bash
+mode=""
+[ -f .claude/repo-mode ] && mode="$(tr -d '[:space:]' < .claude/repo-mode)"
+[ -z "$mode" ] && [ -f "$HOME/.claude/repo-mode" ] && mode="$(tr -d '[:space:]' < "$HOME/.claude/repo-mode")"
+case "$mode" in personal|work) ;; *) mode="unset" ;; esac
+```
 
 ### Resolving the parent PRD
 

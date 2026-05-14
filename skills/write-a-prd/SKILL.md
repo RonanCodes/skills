@@ -1,6 +1,6 @@
 ---
 name: write-a-prd
-description: Generate a PRD through an interactive interview. In repos with a gh remote, defaults to publishing the PRD as a GitHub issue using Matt Pocock's 7-section template with ready-for-agent label (agent-native repo pattern). Falls back to local prd.json for repos without a gh remote. Use when user wants to write a PRD, plan a feature, create user stories, or start a Ralph project.
+description: Generate a PRD through an interactive interview. Defers to /ro:repo-mode for output target — `personal` repos publish the PRD as a GitHub issue (Matt Pocock's 7-section template with ready-for-agent label, agent-native repo pattern); `work` repos write to gitignored `.ralph/<name>/prd.md` so nothing leaks to the work GH/Jira/ADO project. First-run prompt picks the mode and persists per-repo; suggested default comes from the gh remote owner. Falls back to local prd.json when no gh remote exists. Use when user wants to write a PRD, plan a feature, create user stories, or start a Ralph project.
 category: development
 argument-hint: [--quick | --plan] [--target gh|local] [--label <label>] <feature-name>
 allowed-tools: Read Write Edit Glob Grep Bash
@@ -14,15 +14,25 @@ content-pipeline:
 
 Interactive interview that produces a PRD ready for slicing into vertical-slice issues and consumption by a Ralph-style or planner-worker autonomous loop.
 
-## Output target — auto-detect
+## Output target — repo-mode aware
 
-Run `gh repo view --json url 2>/dev/null` to detect whether a GitHub remote is configured.
+Resolution order (highest precedence first):
 
-- **GH remote present** → default to `--target gh`: publish the PRD as a GitHub issue using the agent-native repo template (below). This is the canonical mode and pairs with `/ro:slice-into-issues --target gh` and `/agentic-e2e-flow`.
-- **No GH remote** → fall back to `--target local`: write `.ralph/prd.json` (legacy default).
-- `--target gh|local` flag overrides auto-detection.
+1. Explicit `--target gh|local` flag — always wins.
+2. **Repo mode** — defer to `/ro:repo-mode` resolution. Per-repo `.claude/repo-mode`, then global `~/.claude/repo-mode`. If `personal` → `--target gh`. If `work` → `--target local` (no GH issue created — keeps the work GH/Jira/ADO project clean).
+3. If repo mode is `unset`: run the **first-run prompt** described in `/ro:repo-mode` § "First-run prompt" (auto-suggest based on `gh repo view --json owner`, save to `.claude/repo-mode`, ask once whether to also save as `~/.claude/repo-mode` global default). This prompt fires exactly once per repo, then never again.
+4. If repo mode resolves but no `gh` remote exists → force `--target local` regardless of mode (gh issue create would fail).
 
-When using `--target gh`, after the interview, render the PRD content into the body template and publish via:
+The resolver is the same 4-line snippet documented in `/ro:repo-mode`:
+
+```bash
+mode=""
+[ -f .claude/repo-mode ] && mode="$(tr -d '[:space:]' < .claude/repo-mode)"
+[ -z "$mode" ] && [ -f "$HOME/.claude/repo-mode" ] && mode="$(tr -d '[:space:]' < "$HOME/.claude/repo-mode")"
+case "$mode" in personal|work) ;; *) mode="unset" ;; esac
+```
+
+When `--target gh` is selected, after the interview render the PRD content into the body template and publish via:
 
 ```bash
 gh issue create \
@@ -77,11 +87,11 @@ Output: the new GH issue number. Call it `$PARENT`. Hand off to `/ro:slice-into-
 ## Usage
 
 ```
-/write-a-prd --quick my-feature                # Auto-detect target; in gh repo -> publish as issue
-/write-a-prd --plan my-feature                 # Same auto-detect; --plan adds reviewable plan.md gate
-/write-a-prd --target local my-feature         # Force local .ralph/prd.json (legacy default)
-/write-a-prd --target gh --label Sandcastle my-feature   # Force GH, custom label
-/write-a-prd my-feature                        # Defaults to --quick + auto-detect
+/write-a-prd --quick my-feature                # Resolve target via /ro:repo-mode; personal -> GH issue, work -> .ralph/prd.json
+/write-a-prd --plan my-feature                 # Same; --plan adds reviewable plan.md gate
+/write-a-prd --target local my-feature         # Force local .ralph/prd.json regardless of repo-mode
+/write-a-prd --target gh --label Sandcastle my-feature   # Force GH issue, custom label
+/write-a-prd my-feature                        # Defaults to --quick + repo-mode resolution
 ```
 
 ## --quick Mode

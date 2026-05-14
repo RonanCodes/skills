@@ -1,6 +1,6 @@
 ---
 name: ralph
-description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/ OR from GitHub issues labelled `ready-for-agent` (agent-native repo pattern). Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged with `Closes #N` for GH source), validates, and updates progress. Supports named PRDs via --prd <name>, Kanban-style local files via --kanban, GitHub-issues source via --source github:<label>, and a reviewer-gate (Matt Pocock implementer/reviewer split) via --reviewer <model>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
+description: Run an autonomous Ralph loop to implement tasks from a PRD in .ralph/ OR from GitHub issues labelled `ready-for-agent` (agent-native repo pattern). Each iteration picks the highest-priority unfinished story, implements it in a fresh isolated context, opens ONE PR per story (squash-merged with `Closes #N` for GH source), validates, and updates progress. Source defaults defer to /ro:repo-mode — `personal` repos read from GitHub issues; `work` repos read from local `.ralph/` only (nothing leaks to the work GH/Jira/ADO project). Supports named PRDs via --prd <name>, Kanban-style local files via --kanban, GitHub-issues source via --source github:<label>, and a reviewer-gate (Matt Pocock implementer/reviewer split) via --reviewer <model>. Modes: --mode fresh (default; one story = one fresh subagent), --mode batched (one context across stories, faster but riskier), --mode single (one story then stop). Use when you want to start the Ralph loop, run ralph, or implement PRD tasks autonomously.
 category: development
 argument-hint: [--prd <name>] [--source local|github:<label>] [--mode fresh|batched|single] [--kanban] [--reviewer <model>] [--plan-only] [--max-iterations <N>]
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
@@ -10,14 +10,40 @@ allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 
 Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/` OR from GitHub issues with a configured label (agent-native repo pattern; see `--source github:<label>`), implements it in a **fresh isolated context** by default, opens ONE PR per story, validates, commits, and updates progress.
 
-## Source — auto-detect
+## Source — repo-mode aware
 
 The `--source` flag picks where stories come from:
 
-- `--source local` (default when no gh remote, or when `.ralph/` already populated): reads from `.ralph/prd.json` (sequential) or `.ralph/issues/*.md` (with `--kanban`). Legacy behaviour.
-- `--source github:<label>` (default when a gh remote is configured and `.ralph/` is empty): reads from open GitHub issues with the given label, e.g. `--source github:ready-for-agent` (or the project's synonym such as `Sandcastle`).
+- `--source local`: reads from `.ralph/prd.json` (sequential) or `.ralph/issues/*.md` (with `--kanban`). Legacy behaviour. Default for **work-mode repos** (keeps the flow invisible to the work GH/Jira/ADO project) and for repos with no gh remote.
+- `--source github:<label>`: reads from open GitHub issues with the given label, e.g. `--source github:ready-for-agent` (or the project's synonym such as `Sandcastle`). Default for **personal-mode repos** with a gh remote.
 
-Auto-detect order: if `--source` is omitted, run `gh repo view --json url 2>/dev/null` and `ls .ralph/issues/ 2>/dev/null`. If a gh remote exists AND `.ralph/` is empty/absent → `--source github:ready-for-agent` is the default. If `.ralph/` is populated → `--source local` to honour existing work in flight. User can always override.
+Auto-detect order when `--source` is omitted:
+
+1. Resolve repo mode via the 4-line snippet from `/ro:repo-mode`:
+
+   ```bash
+   mode=""
+   [ -f .claude/repo-mode ] && mode="$(tr -d '[:space:]' < .claude/repo-mode)"
+   [ -z "$mode" ] && [ -f "$HOME/.claude/repo-mode" ] && mode="$(tr -d '[:space:]' < "$HOME/.claude/repo-mode")"
+   case "$mode" in personal|work) ;; *) mode="unset" ;; esac
+   ```
+
+2. Resolve repo state:
+
+   ```bash
+   has_gh="$(gh repo view --json url 2>/dev/null && echo yes || echo no)"
+   has_local="$(ls .ralph/issues/*.md 2>/dev/null | head -1 && echo yes || echo no)"
+   ```
+
+3. Pick the default:
+
+   - `mode == work` → **always** `--source local`. Never query GH issues; the agent flow must stay invisible. If `.ralph/` is empty, prompt the user to run `/ro:write-a-prd` first.
+   - `mode == personal` AND `has_gh == yes` AND `.ralph/` empty → `--source github:ready-for-agent`.
+   - `mode == personal` AND `.ralph/` populated → `--source local` to honour existing work in flight.
+   - `mode == unset` → run the first-run prompt from `/ro:repo-mode` § "First-run prompt", persist, then re-resolve.
+   - `has_gh == no` → force `--source local` regardless of mode.
+
+User can always override with an explicit `--source` flag.
 
 ### GitHub-source iteration
 

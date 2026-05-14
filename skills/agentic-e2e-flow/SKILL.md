@@ -1,6 +1,6 @@
 ---
 name: agentic-e2e-flow
-description: High-level end-to-end orchestrator for autonomous feature delivery. Sequences swarm-research → grill-with-docs → write-a-prd → slice-into-issues → swarm-or-ralph → gh-ship, with PRD and slices published as GitHub issues using Matt Pocock's agent-native repo pattern (single `ready-for-agent` label, parent issue + child slice issues referencing the parent). Use when the user wants to "kick off the matt pocock flow", "run the autonomous agent flow", "agentic e2e flow", "the high-level flow", "the big flow", "the whole flow", "ship this feature autonomously end-to-end", or asks to drive a feature from idea to merged PR without manual hand-offs between phases.
+description: High-level end-to-end orchestrator for autonomous feature delivery. Sequences swarm-research → grill-with-docs → write-a-prd → slice-into-issues → swarm-or-ralph → gh-ship. Defers to /ro:repo-mode for output target — `personal` repos publish PRD and slices as GitHub issues using Matt Pocock's agent-native repo pattern; `work` repos run the same pipeline fully local in gitignored `.ralph/` so nothing leaks to the work GH/Jira/ADO project. Use when the user wants to "kick off the matt pocock flow", "run the autonomous agent flow", "agentic e2e flow", "the high-level flow", "the big flow", "the whole flow", "ship this feature autonomously end-to-end", or asks to drive a feature from idea to merged PR without manual hand-offs between phases.
 category: workflow
 argument-hint: [--build swarm|ralph] [--feature "<short title>"] [--skip-swarm] [--skip-grill] [--label <label>]
 allowed-tools: Bash Read AskUserQuestion
@@ -40,7 +40,22 @@ Implements [agent-native-repo-pocock pattern](https://github.com/RonanCodes/llm-
 
 ## Pre-flight
 
-Before any phase, verify the repo is in agent-native shape:
+### Resolve repo mode FIRST (before any GH probing)
+
+```bash
+mode=""
+[ -f .claude/repo-mode ] && mode="$(tr -d '[:space:]' < .claude/repo-mode)"
+[ -z "$mode" ] && [ -f "$HOME/.claude/repo-mode" ] && mode="$(tr -d '[:space:]' < "$HOME/.claude/repo-mode")"
+case "$mode" in personal|work) ;; *) mode="unset" ;; esac
+```
+
+- `mode == work` → **work pipeline**: skip every GH-side probe below. PRD goes to `.ralph/<name>/prd.md`, slices to `.ralph/issues/*.md`, build via `/ro:planner-worker --skip-grill` (no `--github`) or `/ro:ralph --source local --kanban`, ship via local commits + branch push only. Phase 0 (drafts inbox) is a no-op in work mode (no `prd:draft` issues to scan). Gate 6 (ship) skips `gh pr` and stops at "branch ready locally — open a PR in your work GH/Azure DevOps/Bitbucket project manually if appropriate".
+- `mode == personal` → **personal pipeline** (the GH-issue agent-native flow described below). Continue with the agent-native pre-flight checks.
+- `mode == unset` → run the first-run prompt from `/ro:repo-mode` § "First-run prompt", persist, then re-resolve. The auto-suggest is based on `gh repo view --json owner -q .owner.login` (RonanCodes / Simplicity-Labs → personal; anything else → work).
+
+### Personal-mode pre-flight (agent-native shape)
+
+When `mode == personal`, verify the repo is in agent-native shape:
 
 ```bash
 # 1. gh remote present
@@ -58,7 +73,7 @@ test -d docs/agents
 
 If any check fails, offer to bootstrap before proceeding:
 
-- Missing `gh` remote → offer `gh repo create`
+- Missing `gh` remote → offer `gh repo create` (or suggest the user might want `/ro:repo-mode work` instead if this is actually a work repo)
 - Missing label → offer `gh label create ready-for-agent --color FBCA04 --description "Issues queued for autonomous agent"`
 - Missing `CONTEXT.md` → tell user this will be created lazily during grill-with-docs
 - Missing `docs/agents/` → offer to drop in templates from `~/.claude/templates/docs-agents/` (the templates explain backlog/triage-labels/domain conventions)
