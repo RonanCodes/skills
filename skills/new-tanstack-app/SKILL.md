@@ -215,6 +215,16 @@ export const models = {
 
 Scaffold `src/routes/api/chat.ts` as a reference `streamText` endpoint using `toDataStreamResponse()`. Prompt-caching breakpoints via `providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } }`. Document in `ARCHITECTURE.md` that provider swap = change one import in `lib/models.ts`.
 
+**For downstream feature work, point the user (and future agents) at `/ro:vercel-ai-sdk`.** It covers every Core primitive (`streamText`, `generateText`, `generateObject`, `streamObject`, `embed`, tool() agentic loops, `wrapLanguageModel` middleware), every UI hook (`useChat`, `useCompletion`, `useObject`), the v6 `UIMessage` parts[] wire protocol, provider-specific tricks (Anthropic prompt caching + extended thinking, OpenAI reasoning effort + structured outputs, Google grounding), edge-runtime gotchas, and v5→v6 migration. **Append this line to the scaffolded `AGENTS.md` and `CLAUDE.md`:**
+
+```markdown
+## AI SDK
+
+This project uses the Vercel AI SDK (v6). For patterns, primitives, recipes, and provider-specific tricks, load `/ro:vercel-ai-sdk` before adding or modifying any AI feature.
+```
+
+That cross-reference is what auto-loads the AI-SDK skill the next time someone asks for a chat / streaming / structured-output / tool-calling feature in this project.
+
 Push provider keys as Worker secrets: `wrangler secret put ANTHROPIC_API_KEY` (and/or OPENAI/GOOGLE).
 
 ### 7b. `--agent xstate` → XState decision machine
