@@ -193,7 +193,7 @@ The build skill picks `ready-for-agent`-labelled issues whose body opens with `#
 
 On each slice complete, automatic transition to gate 6 for that slice.
 
-**Always fires `/ro:pushover` at the end of gate 5** (done / paused / blocked / crashed) — confirmed 2026-05-14, autonomous build runs always get a phone ping regardless of whether the user typed "AFK" or "night shift". Skip only when `--plan-only` or `--no-ping`.
+**Always fires `/ro:completion-report` then `/ro:pushover` at the end of gate 5** (done / paused / blocked / crashed). The report renders per-PR diffs + per-file rollback to `<repo>/.completion-reports/<ts>-<slug>.html`; the Pushover ping carries the report path as a `--url` deep link so tapping the phone notification opens the diff browser. Confirmed 2026-05-14, autonomous build runs always get a phone ping regardless of whether the user typed "AFK" or "night shift". Skip both tail calls only when `--plan-only` or `--no-ping`. Skill details: `~/Dev/ronan-skills/skills/completion-report/SKILL.md`.
 
 ### Gate 6 — Ship
 

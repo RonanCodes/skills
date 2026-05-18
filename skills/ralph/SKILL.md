@@ -250,17 +250,22 @@ In `--mode fresh` and `--mode single`, work on ONE story per iteration. After co
 
 In `--mode batched`, multiple stories share one context. This is the explicit opt-in for situations where the user accepts the risk in exchange for speed.
 
-## Always fire Pushover at end (load-bearing default)
+## Always fire completion-report + Pushover at end (load-bearing default)
 
-ANY `/ro:ralph` run against a real backlog ends with a `/ro:pushover` notification — done / paused / blocked / crashed. Confirmed 2026-05-14: autonomous coding runs always get a ping regardless of whether the user typed "AFK" or "night shift". The user can't tell from their phone if a run is still going or stopped 20 min in; a single end-of-run ping is the fix.
+ANY `/ro:ralph` run against a real backlog ends with TWO tail calls, in this order:
 
-Skip Pushover ONLY when:
+1. **`/ro:completion-report --prd <name> --no-open`** — writes a browsable HTML report to `<repo>/.completion-reports/<ts>-<prd>.html` with per-PR cards, file diffs, per-file rollback commands, and a risk panel. Capture the absolute path it prints.
+2. **`/ro:pushover --url file://<path-from-step-1>`** — sends the done / paused / blocked / crashed ping with the report path as a deep link, so tapping the phone notification opens the report.
+
+If step 1 reports an empty range ("no commits in range, nothing to report"), skip the `--url` flag on step 2 but STILL send the ping with the state message.
+
+Skip BOTH tail calls ONLY when:
 
 - `--plan-only` (nothing actually ran)
 - `--mode single` and it's the only story (one-shot exploration, not a real run)
 - User explicitly passed `--no-ping`
 
-For the firing recipe (script path, env vars, message anatomy), see `~/Dev/ronan-skills/skills/pushover/SKILL.md`. Message shape: state + one concrete metric + what Ronan needs to do next. Example: `"ralph done — 14/14 stories merged, 0 deferred, ready for visual review"`.
+For the recipes: report path printing in `~/Dev/ronan-skills/skills/completion-report/SKILL.md`; Pushover firing in `~/Dev/ronan-skills/skills/pushover/SKILL.md`. Message shape: state + one concrete metric + what Ronan needs to do next. Example: `"ralph done — 14/14 stories merged, 0 deferred, ready for visual review"` with the report URL attached.
 
 ## Progress Report Format
 

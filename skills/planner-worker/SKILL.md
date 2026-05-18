@@ -298,20 +298,29 @@ KEEP_GOING re-invokes the planner with the judge's missing-work bullets; STOP ex
 - `--judge-agent` (Cursor-style termination)
 - `--skip-grill` (use defaults for unspecified flags)
 
-## Always fire Pushover at end (load-bearing default)
+## Always fire completion-report + Pushover at end (load-bearing default)
 
-ANY `/ro:planner-worker` run against a real backlog ends with a `/ro:pushover` notification — done / paused / blocked / crashed. Confirmed 2026-05-14: a multi-agent swarm IS an autonomous coding run by definition; always ping at end regardless of whether the user typed "AFK" or "night shift". The user can't tell from their phone if the swarm is still going or stopped 20 min in.
+ANY `/ro:planner-worker` run against a real backlog ends with TWO tail calls, in this order:
+
+1. **`/ro:completion-report --prs <merged-pr-list> --title "<prd-name> swarm" --no-open`** — writes a browsable HTML report to `<repo>/.completion-reports/<ts>-<slug>.html` with per-PR cards (CI status, file stats, summary), per-file diffs, per-PR revert command, per-file rollback command, and a risk panel (schema migrations, env changes, large deletions, lockfile-only PRs, no-tests-on-feat). Capture the absolute path it prints. Pass `--prs` rather than `--prd` because the swarm tracks the merged PR list directly; falls back to `--prd <name>` if PR list isn't available.
+2. **`/ro:pushover --url file://<path-from-step-1>`** — sends the done / paused / blocked / crashed ping with the report path as a deep link.
+
+If step 1 reports an empty range, skip `--url` on step 2 but STILL send the ping with state.
+
+Pushover message anatomy:
 
 ```
 night shift done: <N> stories merged, <M> stuck, <duration>
 ```
 
-Skip Pushover ONLY when:
+with the report URL attached so tapping the notification opens the diff browser.
+
+Skip BOTH tail calls ONLY when:
 
 - `--plan-only` (planner runs but no workers dispatch)
 - User explicitly passed `--no-ping`
 
-Per the global Pushover firing rule (see `~/CLAUDE.md` § Pushover Notifications, condition 4).
+Per the global Pushover firing rule (see `~/CLAUDE.md` § Pushover Notifications, condition 4) and the completion-report skill at `~/Dev/ronan-skills/skills/completion-report/SKILL.md`.
 
 ## US-11: --workers N
 
