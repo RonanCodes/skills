@@ -75,6 +75,14 @@ pnpm add @modelcontextprotocol/sdk zod
 pnpm add -D typescript tsx @types/node
 ```
 
+### 1a. Supply-chain hardening → `/ro:harden-npm`
+
+```bash
+/ro:harden-npm
+```
+
+MCP servers often get published to npm, so they need especially tight supply-chain controls (a poisoned MCP server gets executed inside Claude Code with full filesystem access). See `llm-wiki-security/wiki/playbooks/npm-supply-chain-hardening.md`.
+
 `package.json`:
 
 ```json

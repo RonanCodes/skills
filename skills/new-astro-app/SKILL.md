@@ -56,11 +56,15 @@ pnpm create astro@latest <app-name> -- --template minimal --typescript strict --
 cd <app-name>
 ```
 
-Pin pnpm:
+### 1a. Supply-chain hardening (always) → `/ro:harden-npm`
+
+Run immediately after scaffold. Locks in pnpm 11 defaults (`minimumReleaseAge=1440`, `strictDepBuilds=true`, `blockExoticSubdeps=true`), pins `packageManager` to current pnpm in `package.json` (replaces the old hardcoded `corepack use pnpm@10.26.1` step), writes per-repo `.npmrc`, installs husky pre-push.
 
 ```bash
-corepack use pnpm@10.26.1
+/ro:harden-npm
 ```
+
+Background: Mini Shai-Hulud v2 (CVE-2026-45321). See `llm-wiki-security/wiki/playbooks/npm-supply-chain-hardening.md`.
 
 ### 2. Wire Cloudflare adapter (always)
 

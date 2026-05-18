@@ -96,6 +96,18 @@ pnpm install
 git init && git add -A && git commit -m "🧹 chore: scaffold tanstack start"
 ```
 
+### 1a. Supply-chain hardening (always) → `/ro:harden-npm`
+
+Run **immediately after the first `pnpm install`**, before any other step adds packages. This locks in pnpm 11 defaults (`minimumReleaseAge=1440`, `strictDepBuilds=true`, `blockExoticSubdeps=true`), pins `packageManager` in `package.json`, writes a per-repo `.npmrc` with the same settings as defence-in-depth, and runs `pnpm approve-builds` to set the `pnpm.onlyBuiltDependencies` allowlist.
+
+```bash
+/ro:harden-npm
+```
+
+If pnpm < 11 on the host machine, the skill auto-upgrades via corepack before applying. Idempotent — safe to re-run after later `pnpm add` calls.
+
+Background: triggered by Mini Shai-Hulud v2 (CVE-2026-45321) supply-chain attack on TanStack. Full context in `llm-wiki-security/wiki/incidents/mini-shai-hulud-v2-tanstack.md`.
+
 ### 2. Wire Cloudflare adapter (always)
 
 ```bash
