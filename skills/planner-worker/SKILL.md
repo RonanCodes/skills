@@ -129,6 +129,12 @@ Each issue file MUST have frontmatter:
 
 Body: 5-30 lines describing what to build + why, file pointers, test plan.
 
+Every body MUST end with the verbatim `### Close-the-loop tests` block
+(unit + integration + e2e + live smoke) from `/ro:slice-into-issues`.
+The dispatcher refuses to send a worker against a slice missing it
+(see US-2a "Close-the-loop AC gate"); pre-emit it so we never hit
+that gate.
+
 Rules:
 - Vertical slices only. No "scaffold the schema" issues without a UI touchpoint.
 - Mark depends_on for hot-file conflicts (two issues touching the same component).
@@ -158,6 +164,29 @@ Workers will run up to N=3 in parallel.
 ```
 
 Skipped under `--auto-approve` or `--afk`. Rejecting with feedback re-invokes the planner Agent with the feedback inlined.
+
+## US-2a: Close-the-loop AC gate
+
+Before dispatching ANY worker, the planner parses each candidate slice body for the marker `### Close-the-loop tests`. Slices missing it are guaranteed leaks: the night-shift swarm only implements what the AC list spells out, so a slice without an explicit e2e AC ships with no Playwright coverage (lesson captured at `[[close-the-loop-tests-acs]]`; canonical example is dataforce #229 / #231).
+
+Behaviour is controlled by the repo-local `.ronan-skills.json` flag `swarm.missing_test_acs`:
+
+- `refuse` (default, safe): print the offending slice ids + bodies, skip dispatching them, fail-loud if zero dispatchable slices remain. Forces the human to either re-run `/ro:slice-into-issues` against the parent PRD (which now emits the section automatically) or hand-edit the slice body and re-queue.
+- `inject`: auto-prepend the boilerplate `### Close-the-loop tests` block (verbatim from `/ro:slice-into-issues`) before dispatch AND tag the issue with the `acs-auto-injected` label (so reviewers know to read the diff for actual test files). Faster but riskier: a worker may implement the slice without writing the tests if the issue body doesn't already reference them in the "What to build" prose.
+
+Parse logic (cheap, no LLM needed):
+
+```bash
+issue_body="$(gh issue view "$NUM" --json body --jq .body)"
+if ! grep -q '^### Close-the-loop tests' <<< "$issue_body"; then
+  case "$(jq -r '.swarm.missing_test_acs // "refuse"' .ronan-skills.json)" in
+    inject) inject_block_and_label_acs_auto_injected ;;
+    *)      mark_slice_skipped_with_reason "missing-close-the-loop-tests" ;;
+  esac
+fi
+```
+
+This gate runs in both `--prd <name>` mode (planner Agent-emitted slices) AND `--queue <path>` mode (ranked night-shift input). The night-shift loop should not be expected to backfill ACs into pre-existing issues; if a slice arrives without the section, the gate is the last line of defence.
 
 ## US-2b: Ranked queue input from /ro:night-shift
 

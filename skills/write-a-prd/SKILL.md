@@ -73,6 +73,8 @@ Do NOT include file paths or code snippets — they go stale fast. Exception: a 
 
 What makes a good test for this feature (external behaviour, not implementation). Which modules will be tested. Prior art for similar tests in the codebase.
 
+> **Every slice this PRD generates inherits the close-the-loop test ACs (unit + integration + e2e + 30-second live smoke). Do not skip.** Captured at `[[close-the-loop-tests-acs]]` and enforced by `/ro:slice-into-issues` (which emits the `### Close-the-loop tests` subsection in every slice body) and `/ro:planner-worker` (which refuses to dispatch slices missing that section).
+
 ## Out of Scope
 
 What this PRD explicitly does NOT cover.

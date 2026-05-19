@@ -64,10 +64,24 @@ Body template — Matt Pocock's slice shape:
 - [ ] Criterion 2
 - [ ] Criterion 3
 
+### Close-the-loop tests (REQUIRED, every story)
+
+- [ ] **Unit:** new pure functions / Zod schemas / DB repo helpers have vitest coverage.
+- [ ] **Integration:** any new API route is exercised via vitest with a mocked Nango / D1.
+- [ ] **e2e:** ANY user-facing UI route or flow has a Playwright spec that:
+  - Navigates to the canonical URL a real user would reach (not just the page in isolation).
+  - Walks the full input-to-completion path (no "page renders" without "completing the form does what it should").
+  - Asserts redirects land on the right destination (no loops, no 404s).
+- [ ] **Live smoke:** the PR description includes a 30-second manual smoke checklist for the reviewer.
+
 ## Blocked by
 
 - #$BLOCKER_ISSUE_NUMBER     ← or "None - can start immediately"
 ```
+
+The `### Close-the-loop tests` subsection is **non-negotiable**. Every slice this skill emits MUST include it verbatim. The lesson behind it is captured at `[[close-the-loop-tests-acs]]` in the wiki — a user story without an e2e AC is a guaranteed leak (the night-shift swarm only implements what it's asked for; it does not invent tests it wasn't told to write).
+
+The downstream planner (`/ro:planner-worker` § "Close-the-loop AC gate") parses the issue body for `### Close-the-loop tests`. If missing it either refuses to dispatch (default) or auto-injects the boilerplate, controlled by the repo-local `.ronan-skills.json` flag `swarm.missing_test_acs: refuse|inject`.
 
 Publishing in dependency order means earlier slices' real issue numbers can be referenced in later slices' `Blocked by` sections. Capture each created issue number as you go.
 
@@ -179,6 +193,13 @@ When a user completes a lesson, they receive points and see the updated total on
 - [ ] UI: dashboard renders current points total.
 - [ ] Test: integration test covers lesson-complete → points-visible round trip.
 
+### Close-the-loop tests (REQUIRED, every story)
+
+- [ ] **Unit:** new pure functions / Zod schemas / DB repo helpers have vitest coverage.
+- [ ] **Integration:** any new API route is exercised via vitest with a mocked Nango / D1.
+- [ ] **e2e:** ANY user-facing UI route or flow has a Playwright spec that walks the canonical URL, completes the form, and asserts the next-step destination (no loops, no 404s).
+- [ ] **Live smoke:** the PR description includes a 30-second manual smoke checklist for the reviewer.
+
 ## Notes
 
 - Points amount per lesson is hardcoded to 10 for this slice. Configurability lands in slice 005.
@@ -218,3 +239,4 @@ Next step: /ralph --kanban  (or /matt-pocock-coding-workflow continues automatic
 - Vertical slices vs horizontal → `llm-wiki-ai-research:vertical-slices-tracer-bullets`
 - Deep modules → `llm-wiki-ai-research:deep-modules-for-ai`
 - Phase N Ralph loop → `llm-wiki-ai-research:phase-n-ralph-loop`
+- Close-the-loop tests as a required AC section → `llm-wiki-skill-lab:patterns/close-the-loop-tests-acs`
