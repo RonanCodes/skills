@@ -268,7 +268,7 @@ The planner is the lifecycle-label authority while a wave is in flight, per the 
 - **On dispatch:** swap `ready-for-agent` → `in-progress` on the chosen issue (single `gh issue edit --add-label in-progress --remove-label ready-for-agent`).
 - **On reviewer reject:** swap `in-progress` → `ready-for-agent` (back into the queue for the next wave).
 - **On HITL escalation:** swap `in-progress` → `needs-human` and post a structured comment naming the human action required.
-- **On PR merge:** the issue auto-closes via `Closes #N`; closed state is the absence of any lifecycle label (no extra `gh` call).
+- **On PR merge:** the worker MUST explicitly `gh issue edit <NUM> --remove-label in-progress` BEFORE the squash-merge call. The `Closes #N` autoclose flips the issue from open to closed but does NOT strip labels — without the explicit remove, the closed issue keeps a stale `in-progress` label and the lifecycle-label invariant breaks. Closed state is the absence of any lifecycle label.
 
 Branch flow: workers branch off their assigned issue with `gh issue develop <issue-number> --name <slug> --checkout` rather than plain `git checkout -b`. This produces the GitHub issue→branch dev-link, which makes `Closes #N` automatic in the PR and lets the night-shift retro walk issue→PR without title-matching.
 
@@ -292,6 +292,20 @@ Workflow:
 4. Only exit successfully when ALL DoD commands pass
 5. Commit on the worktree branch with an emoji-conventional message
 6. Append a one-line summary to .swarm/logs/<id>.log
+7. Before squash-merge (or just before exit, whichever applies in your dispatch shape): `gh issue edit <NUM> --remove-label in-progress`. The `Closes #N` autoclose strips the issue's open state but does NOT strip labels; without this step the closed issue keeps its stale `in-progress` label and the canonical lifecycle invariant breaks.
+
+Worktree guard — run BEFORE every git command (including `git status` / `git rev-parse`):
+
+```bash
+test "$(git rev-parse --abbrev-ref HEAD)" != "main" \
+  || { echo "ERROR: on main branch, refusing to commit"; exit 1; }
+test "$(pwd)" != "<MAIN_REPO_ABSOLUTE_PATH>" \
+  || { echo "ERROR: in main checkout, refusing to commit"; exit 1; }
+```
+
+If either check fails, exit "stuck" immediately — do NOT recover by switching branches. Lesson #5a documents the failure mode: the Agent tool's `isolation: "worktree"` flag occasionally fails to take effect and the worker lands in the shared main checkout; once there, every subsequent git op mutates the main checkout's index instead of the worktree's. Branch protection on `main` is the load-bearing backstop (rejects the eventual push), but the in-prompt guard catches the drift earlier and avoids a "stuck on rejected push" loop.
+
+If `git push` is rejected by GitHub's branch-protection hook (e.g. `remote: error: GH006: Protected branch update failed`), do NOT retry, do NOT use `--force`, `--force-with-lease`, or `--admin`. That rejection means you drifted out of your worktree onto main. Exit "stuck" with the rejection message verbatim so the orchestrator can intervene.
 
 Rules:
 - One commit per logical change, but ALL must land before exit
