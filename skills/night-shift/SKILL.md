@@ -29,7 +29,7 @@ The companion is the **remote factory** — the Factory app (tracked separately)
 7. **Queue refill (US-5).** When the ready queue empties, refill per scope: auto-slice the next parent PRD via a planner sub-agent, grill a `prd:draft`, or stop.
 8. **Workers may open follow-up issues (US-6).** Out-of-scope TODOs surfaced mid-implementation become new `ready-for-agent` issues labelled `nightshift-followup` so they get triaged the next morning, not dropped.
 9. **Nightsheet (US-7).** End-of-session aggregate: a GH issue labelled `nightsheet` summarising what shipped, what's open, what's blocked, plus a `/ro:completion-report` HTML on disk.
-10. **Retro (Phase 7, see below).** `/ro:night-shift-retro` runs after the swarm exits, captures matrix-row failures and failure modes per slice, files SYSTEM action items against ronan-skills / factory, files PROJECT action items against the current repo as `ready-for-human`, writes a markdown + JSON artefact under `.nightshift/retros/<date>-<run-id>.{md,json}`. Pushover and Telegram fire AFTER the retro so the notification URL deep-links into the retro markdown.
+10. **Retro + morning briefing (Phase 7, see below).** `/ro:night-shift-retro` runs after the swarm exits, captures matrix-row failures and failure modes per slice, files SYSTEM action items against ronan-skills / factory, files PROJECT action items against the current repo as `ready-for-human`, writes a markdown + JSON artefact under `.nightshift/retros/<date>-<run-id>.{md,json}`, and renders a morning briefing HTML under `.nightshift/briefings/<date>.html`. Pushover and Telegram fire AFTER the retro and deep-link to the briefing HTML (the "wake-up-to-coffee" artefact).
 
 ## US-0: Opening grill — what does AFK mean tonight?
 
@@ -293,18 +293,26 @@ Body template:
 Per global `~/CLAUDE.md` rule 4 (Pushover) and the Telegram sibling rule, fire BOTH:
 
 ```bash
+# Deep-link target priority: briefing HTML (US-7 output) > retro markdown > completion-report HTML.
+url="file://<completion-report-path>"
+[ -f .nightshift/last-retro-url.txt ]    && url=$(cat .nightshift/last-retro-url.txt)
+[ -f .nightshift/last-briefing-url.txt ] && url=$(cat .nightshift/last-briefing-url.txt)  # wins if present
+
 bash ~/Dev/ronan-skills/skills/pushover/scripts/notify.sh \
   "night shift done: <N> merged, <M> stuck, <K> follow-ups" \
   --title "Night shift" \
-  --url "file://<completion-report-path>"
+  --url "$url"
 
+# Telegram's notify.sh does NOT accept --url. Embed the URL inline.
 bash ~/Dev/ronan-skills/skills/telegram/scripts/notify.sh \
-  "night shift done: <N> merged, <M> stuck, <K> follow-ups" \
-  --title "Night shift" \
-  --url "file://<completion-report-path>"
+  "night shift done: <N> merged, <M> stuck, <K> follow-ups
+
+briefing: $url
+nightsheet: <nightsheet-issue-url>" \
+  --title "Night shift"
 ```
 
-Tapping either notification opens the HTML diff browser. The nightsheet GH issue is the durable triage queue for the morning.
+Tapping the Pushover notification opens the morning briefing in the browser (the most useful deep-link target). Telegram displays the URLs inline so they're tappable from the chat. The nightsheet GH issue is the durable triage queue for the morning.
 
 Skip BOTH notifications only when `--no-ping` or `--plan-only`.
 
@@ -322,10 +330,11 @@ The retro:
 2. Classifies each slice's outcome (`merged` / `blocked` / `deferred` / `auto-split`) and failure mode (`thrashing` / `proxy-gaming` / `misalignment` / `non-convergence` / `context-drift` / `runaway-resource` / `other`).
 3. Drafts action items, classified `SYSTEM` (ronan-skills / factory) vs `PROJECT` (current repo, `ready-for-human` label) vs `UNCLEAR` (markdown only).
 4. Writes `.nightshift/retros/<YYYY-MM-DD>-<run-id>.md` + `.json`.
-5. Files cross-repo issues per the routing rules in [[night-shift-retro-and-day-shift]] § "Cross-repo routing" when `.ronan-skills.json` `retros.open_followup_issues: true`.
-6. Drops the retro URL into `.nightshift/last-retro-url.txt` so the subsequent Pushover + Telegram tail call can deep-link into it.
+5. Renders the morning briefing HTML to `.nightshift/briefings/<YYYY-MM-DD>[-<suffix>].html` (when `retros.morning_briefing: true`, default). This is the "wake-up-to-coffee" artefact: hero card, merged PRs, new slices, "what to do this morning", deploy status, biggest surprise, run summary, links. See `/ro:night-shift-retro` US-4b for the section shape.
+6. Files cross-repo issues per the routing rules in [[night-shift-retro-and-day-shift]] § "Cross-repo routing" when `.ronan-skills.json` `retros.open_followup_issues: true`.
+7. Drops the briefing path into `.nightshift/last-briefing-url.txt` (preferred deep-link target) and the retro path into `.nightshift/last-retro-url.txt` (fallback) so the subsequent Pushover + Telegram tail call picks whichever exists.
 
-The Pushover + Telegram pings (US-6 above) THEN fire with `--url file://<retro-path>` instead of just the completion-report HTML — tapping the phone notification lands in the retro markdown, which links back to the completion-report HTML and the nightsheet issue.
+The Pushover + Telegram pings (US-6 above) THEN fire with the briefing HTML as the deep-link — tapping the phone notification lands on the morning briefing, which links onward to the retro markdown, completion-report HTML, and the nightsheet issue.
 
 Skip the retro under any of:
 

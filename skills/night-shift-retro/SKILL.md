@@ -221,6 +221,43 @@ Markdown headers (each section mirrors a JSON block):
 - dataforce#<N> — "[ready-for-human] Onboarding router-shadowing investigation"
 ```
 
+## US-4b: Render the morning briefing HTML (when `retros.morning_briefing: true`)
+
+Default `true`. The briefing is the "wake-up-to-coffee" artefact: a single self-contained HTML page that Skip (or Ronan) opens first thing to see what shipped, what's open, and what to do today. It's also the deep-link target for the Pushover + Telegram tail call (more useful than the raw markdown).
+
+Write to:
+
+```
+<repo>/.nightshift/briefings/<YYYY-MM-DD>[-<run-id-suffix>].html
+```
+
+If a briefing already exists for the date (e.g. you ran morning + evening night-shifts the same day), suffix the filename with the run-id so they don't collide:
+
+```
+.nightshift/briefings/2026-05-19.html              # morning run
+.nightshift/briefings/2026-05-19-evening.html      # evening run
+.nightshift/briefings/2026-05-19-20260519T1729Z.html  # if run-ids needed for disambiguation
+```
+
+Section shape (every briefing has these in this order):
+
+1. **Header strip**: sticky top, `night-shift briefing` brand, date / repo / run-id meta.
+2. **Hero card**: one-sentence headline (`Good morning. <N> PRs shipped, <signal>, <signal>.`), one paragraph follow-up summarising the run's shape.
+3. **Merged this run**: per-PR card with title, slice link, additions/deletions, squash-merged status.
+4. **New slices filed**: backlog growth grouped by parent issue; each slice link shows `merged` / `ready-for-agent` / `deferred`.
+5. **What to do this morning (in order)**: 4-7 numbered actions. ALWAYS includes deploy step if PRs landed without auto-deploy. Format: `<verb> <noun>: <specific command or link>`.
+6. **Open follow-ups**: every `needs-human` issue filed by workers + any PR review awaiting author action.
+7. **Deploy status**: pending / done / failed with the relevant command (`/ro:cf-ship` for Cloudflare, `/ro:fly-deploy` for Fly).
+8. **Biggest surprise**: 1-3 sentences capturing the most-likely-to-bite-us learning of the night. Surfaces SYSTEM gaps for the action-items list.
+9. **Run summary**: stats table (started, ended, duration, waves, workers, PRs, slices, follow-ups, dupes, side-quests, failure modes).
+10. **Links**: nightsheet GH issue, completion-report HTML, retro markdown + JSON, this briefing's path.
+
+Reuse the GitHub dark palette CSS from any prior briefing on the same repo (look for `.nightshift/briefings/*.html`) so visual identity stays consistent across runs. If no prior briefing exists, use the canonical CSS block documented at [[night-shift-briefing-template]] (or fall back to a minimal one-pane stylesheet).
+
+Implementation hint: build the HTML via a Python heredoc or a small `briefing.py` helper that reads the retro JSON + `gh pr view` for each merged PR. Don't shell out to a templating engine; the briefing is a single self-contained page.
+
+Path emitted to `.nightshift/last-briefing-url.txt` (file:// URL) so US-7 picks it up.
+
 ## US-5: Cross-repo routing (when `open_followup_issues: true`)
 
 For each action item with `created_issue: null`:
@@ -300,22 +337,27 @@ Use the repo's commitlint format. The dataforce repo uses emoji-conventional wit
 
 ## US-7: Update the dispatcher's tail-call notification
 
+Deep-link target priority (most useful first): briefing HTML > retro markdown > completion-report HTML. If the briefing was rendered (US-4b), Pushover + Telegram point at it; otherwise fall back to the retro markdown.
+
 If the dispatcher (night-shift / ralph / planner-worker / agentic-e2e-flow) has already fired Pushover + Telegram, the retro patches the message via `--update`:
 
 ```bash
+url="file://$repo/.nightshift/briefings/$date.html"
+[ -f .nightshift/last-briefing-url.txt ] && url=$(cat .nightshift/last-briefing-url.txt)
 bash ~/Dev/ronan-skills/skills/pushover/scripts/notify.sh \
   --update \
   "$(echo "$dispatcher message" + retro summary line)" \
-  --url "file://$repo/.nightshift/retros/$date-$run_id.md"
+  --url "$url"
 ```
 
 If the dispatcher has NOT yet fired the notifications, prepare the deep-link path so the dispatcher's tail call picks it up:
 
 ```bash
-echo "$repo/.nightshift/retros/$date-$run_id.md" > .nightshift/last-retro-url.txt
+echo "$repo/.nightshift/briefings/$date.html" > .nightshift/last-briefing-url.txt   # preferred
+echo "$repo/.nightshift/retros/$date-$run_id.md" > .nightshift/last-retro-url.txt   # fallback
 ```
 
-Dispatchers read `last-retro-url.txt` if present and inject the URL into their Pushover + Telegram tail call.
+Dispatchers read `last-briefing-url.txt` first, then `last-retro-url.txt`, and inject whichever exists into their Pushover + Telegram tail call. The Telegram script does not accept `--url`; embed the URL inline in the message body instead.
 
 ## US-8: Auto-skill-retro (when `auto_skill_retro: true`)
 
@@ -357,3 +399,4 @@ Default `auto_skill_retro: false` keeps `/ro:skill-retro` as the manual consolid
 ## Provenance
 
 - **2026-05-19** — created in response to the dataforce night-shift run that merged 11 PRs but shipped one broken (`/onboarding/role` redirect loop). Without a retro the SYSTEM gap (e2e mandatory in every slice body) would have surfaced one regression at a time. The retro turns the post-mortem into structured data: SYSTEM action items file against ronan-skills / factory; PROJECT action items file against the current repo with `ready-for-human`. Born alongside [[close-the-loop-verification-matrix]] + [[night-shift-retro-and-day-shift]].
+- **2026-05-19 (evening)** — added US-4b: morning-briefing HTML rendered to `.nightshift/briefings/<date>.html` and made the Pushover + Telegram deep-link target. The `retros.morning_briefing: true` config flag had been dangling, no skill consumed it; this US wires it up. Surfaced during the evening night-shift run that merged 7 PRs and did not produce a briefing automatically. Also clarified that Telegram's notify script does not accept `--url`, so the briefing path is embedded inline in the message body.

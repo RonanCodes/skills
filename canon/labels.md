@@ -41,6 +41,7 @@ The closed state is the absence of any lifecycle label. Conventional: don't rela
 | `phase-3` | `808080` | Phase marker — latest. |
 | `from-retro` | `FFF5B1` (pale yellow) | Auto-created by a night-shift retro. Cross-repo routing pattern: a retro on repo A can open a `from-retro` slice on repo B. |
 | `needs-grilling-skipped` | `FFCCCC` (pale red) | Promoted straight to `ready-for-agent` without the grill. Flag for the reviewer: ACs might be thinner than usual. |
+| `deferred` | `EDEDED` (light grey) | Valid idea, parked. Orchestrators skip it regardless of lifecycle state. Doesn't break the state machine: an issue can be `ready-for-agent + deferred` (grilled but not on the schedule) or `needs-grilling + deferred` (raw idea, not now). Remove the modifier to re-enter the queue. Use this instead of closing-as-wontfix when the idea is still alive but not on the current critical path. |
 
 ## State machine
 
@@ -89,3 +90,4 @@ The script also renames legacy labels (`lock-repo` → `repo-lock`, `expected-hi
 ## Changelog
 
 - 2026-05-19 — Initial lock. Lifecycle / kind / modifiers split, state machine fixed, branch flow uses `gh issue develop`. Authoritative replacement for the ad-hoc label sets across factory, factory-testbench, llm-wiki, lekkertaal, dataforce.
+- 2026-05-19 — Added `deferred` modifier. Lets the orchestrator skip valid-but-parked ideas without closing them or polluting the four-state lifecycle. Day-shift surfaced the gap when grilling dataforce #174 (admin-dashboard impersonation user-story deferred to v2).

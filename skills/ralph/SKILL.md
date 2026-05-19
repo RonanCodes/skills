@@ -340,7 +340,7 @@ For legacy projects that already have a committed `.ralph/progress.txt`: leave i
 7. Validate (typecheck, lint, test — whatever the project requires; respect Definition of Done if present in the spec)
 8. **Open ONE PR for this story** (no batching; see PR-per-story HARD GUARD above)
 9. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`. Weekday timestamps must fall outside 08:30–18:00 (CLAUDE.md rule) — pass `GIT_AUTHOR_DATE` + `GIT_COMMITTER_DATE` to git commit if running inside that window.
-10. Wait for CI green; auto-merge via squash
+10. Wait for CI green; **before** the squash-merge call, run `gh issue edit <NUM> --remove-label in-progress` so the closed issue doesn't keep a stale lifecycle label (the `Closes #N` autoclose strips open-state, not labels); then auto-merge via squash
 11. **Record story finish** timestamp; compute duration; subagent writes its scratch file at `.ralph/sessions/<session-id>/<worker-id>.md`
 12. Update the PRD file — set `status: "passed"`, `passes: true`, and `notes` including the squash SHA
 13. Worker returns its one-line summary to the orchestrator
