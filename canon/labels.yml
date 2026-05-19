@@ -68,7 +68,7 @@ modifiers:
     description: "Promoted to ready-for-agent without grilling; reviewer should double-check ACs."
   - name: deferred
     color: "EDEDED"
-    description: "Valid idea, parked. Orchestrators skip it regardless of lifecycle state. Remove the label to re-enter the queue."
+    description: "Valid idea, parked. Orchestrators skip regardless of lifecycle. Remove to re-enter queue."
 
 # Old name -> new name. The migration script uses gh label edit --name to preserve
 # issue linkage. If the target already exists on a repo, the script falls back to
