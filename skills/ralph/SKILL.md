@@ -213,16 +213,23 @@ This lets one repo drive multiple concurrent phases/initiatives without progress
 
 ## Run artefacts (the canonical shape)
 
-Three classes of file, three different lifecycles:
+Four classes of file, four different lifecycles:
 
 | File | Lifecycle | Git status | Who writes |
 |---|---|---|---|
 | `.ralph/patterns.md` | Durable, cross-run | **committed** | Orchestrator harvests at loop close. Subagents read at iteration start. |
-| `.ralph/<phase>.session.md` | Per-session aggregate, write-once | **committed** | Orchestrator only, on session start (heading) and loop close (finish line + aggregates). |
-| `.ralph/sessions/<session-id>/<worker-id>.md` | Per-iteration scratch | **gitignored** | Each worker writes its own file. Dies at session close after harvest. |
+| `.ralph/<phase>.session.md` | Per-phase rolling aggregate | **committed** | Orchestrator at session start (heading) and loop close (finish line + aggregates). |
+| `.ralph/sessions/<session-id>.md` | Per-session detail log, write-once | **committed** | Orchestrator at loop close after harvest. One file per session, per-story sections, post-harvest. |
+| `.ralph/sessions/<session-id>/<worker-id>.md` | Per-worker live scratch | **gitignored** | Each worker writes its own file. Survives locally for crash inspection; never committed. |
 | `.ralph/<phase>.json` (PRD) | Per-phase spec | committed | Authored manually or by `/ro:write-a-prd` once. |
 
-**Why the split:** the local factory will run parallel workers in git worktrees. A single shared progress file is a merge-conflict pinch point — two workers finishing at the same time clobber each other. Per-worker scratch files avoid that. And most of what a committed progress.txt would carry (PR + SHA + files changed) is already in git's own history, so committing it is duplication. The valuable bits (learnings, decisions) get promoted into `patterns.md` at session close; the rest can die.
+**Why the split:**
+
+- The local factory runs parallel workers in git worktrees. A single shared append-only progress file is a merge-conflict pinch point — two workers finishing at the same time clobber each other. **Worker scratch is per-worker + gitignored** to avoid that.
+- After the orchestrator harvests scratch into `patterns.md` at session close, there's still a per-iteration story worth keeping: timestamps, PR/SHA, the bits that weren't reusable enough to promote. **`sessions/<id>.md` captures that as one committed file per session, written ONCE by the orchestrator** — no append-conflicts (only one writer), no parallel-worker collision (it's written after the workers are done).
+- This gives you `cat .ralph/sessions/2026-05-19T01-48-54Z.md` on any machine after `git pull` and you read what happened that night. The full audit lives in git + GH issue threads; this is the indexed quick-read.
+
+**Naming:** the session id is the orchestrator's start ISO slugged (`2026-05-19T01-48-54Z`). The detail log lives AT `.ralph/sessions/<id>.md`; the worker scratch directory is `.ralph/sessions/<id>/`. Same id, different file shape — gitignore distinguishes via trailing slash.
 
 ### Worker scratch file shape
 
@@ -252,23 +259,72 @@ The "what was implemented" prose lives in the PR body — don't duplicate it her
 When the loop exits (cleanly, max-iterations, or hard error), the orchestrator MUST:
 
 1. Read every `.ralph/sessions/<session-id>/*.md` file written during the session.
-2. Promote any reusable learnings into `.ralph/patterns.md` under an existing or new section heading. Skip per-story / PRD-specific gotchas — those die with the scratch.
-3. Write the session aggregate to `.ralph/<phase>.session.md` (see "Session timing" below).
-4. Commit `patterns.md` + `<phase>.session.md` together as a single `🧹 chore(ralph): session N artefacts for <phase>` commit on the appropriate branch (a fresh `chore/ralph-session-<id>` branch is fine, or on `main` directly if the run was purely on main).
-5. Leave the scratch directory in place locally so the operator can read it; it's gitignored and will be cleaned up on the next session start (or never — disk is cheap).
+2. Promote any reusable learnings into `.ralph/patterns.md` under an existing or new section heading. Skip per-story / PRD-specific gotchas — those keep going but in the session detail log, not patterns.
+3. Write the per-session detail log to `.ralph/sessions/<session-id>.md`. One section per story, structure:
+   ```markdown
+   # Session <id> detail — <phase>
+
+   <session-level metadata: mode, reviewer, total stories, total duration>
+
+   ## US-NNN: <Story Title>
+   - started: <ISO> / finished: <ISO> / duration: <Nm Ns>
+   - PR: #<n> (squash-merged <sha>) → Closes #<issue>
+   - What shipped: <one paragraph from the worker scratch + PR body>
+   - Promoted to patterns.md: <yes/no — and which section if yes>
+   - Local learnings (not promoted): <story-specific gotchas worth keeping for one cat-and-read but not worth carrying forward>
+
+   ---
+   ```
+4. Write the session aggregate to `.ralph/<phase>.session.md` (see "Session timing" below) — that's the rolling per-phase summary; the detail log above is the per-session deep-dive.
+5. Commit `patterns.md` + `sessions/<id>.md` + `<phase>.session.md` together as a single `🧹 chore(ralph): session <id> artefacts for <phase>` commit. Fresh `chore/ralph-session-<id>` branch is fine, or directly on `main` if the run was purely on main.
+6. Leave the per-worker scratch directory in place locally so the operator can read it; it's gitignored and will be cleaned up on the next session start (or never — disk is cheap).
+
+### Close-with-summary comment (required for every story)
+
+Every subagent that ships a slice MUST post a structured comment on the GH issue BEFORE merging. The `Closes #N` line in the PR body auto-closes the issue on merge; the comment makes the closed issue self-explanatory without having to crack open the PR.
+
+Shape (post via `gh issue comment <N> --body "..."` immediately after CI greens, before the merge call):
+
+```markdown
+## Shipped
+
+<one paragraph: what landed, in PR #<n>>
+
+## Surprises encountered
+
+<bullets: anything the original story didn't anticipate. Spec drift, missing dependencies, content gaps, schema discoveries. Empty section is fine.>
+
+## Patterns promoted to .ralph/patterns.md
+
+<bullets, with the section headings where each landed. Empty if nothing reusable.>
+
+## Local learnings (not promoted, kept in sessions/<id>.md only)
+
+<bullets: story-specific gotchas. Empty section is fine.>
+
+## Follow-ups
+
+<bullets: any new `ready-for-agent` issues opened mid-implementation, linked by number. "None" if none.>
+```
+
+The orchestrator prompt template MUST embed this in every implementer-subagent dispatch, immediately after the watchdog-discipline clause and before the squash-merge step.
 
 ### Gitignore policy (no longer prompted)
 
 The new default is fixed:
 
 ```gitignore
-# Ralph / local-factory artefacts
-.ralph/sessions/
+# Ralph / local-factory artefacts.
+# Per-worker scratch directories under .ralph/sessions/<id>/ are ignored;
+# the per-session detail log .ralph/sessions/<id>.md (sibling file) stays tracked.
+.ralph/sessions/*/
 .ralph/*.progress.txt
 .ralph/.gitignore-policy
 ```
 
-`patterns.md`, `<phase>.session.md`, and `<phase>.json` (PRDs) stay tracked. Everything else under `.ralph/` is ephemeral. The first-run policy prompt is retired — the shape is now standard across the local factory.
+The trailing slash on `.ralph/sessions/*/` is load-bearing: `*/` matches only subdirectories, so `.ralph/sessions/<id>/<worker>.md` is ignored while `.ralph/sessions/<id>.md` stays committed.
+
+`patterns.md`, `<phase>.session.md`, `sessions/<id>.md`, and `<phase>.json` (PRDs) stay tracked. The first-run policy prompt is retired — the shape is now standard across the local factory.
 
 For legacy projects that already have a committed `.ralph/progress.txt`: leave it in git history for the audit trail, gitignore the path going forward, and write a follow-up `🧹 chore(ralph): retire legacy progress.txt, harvest learnings into patterns.md` commit that deletes the file from main and copies any surviving learnings into `patterns.md`.
 
@@ -288,7 +344,7 @@ For legacy projects that already have a committed `.ralph/progress.txt`: leave i
 11. **Record story finish** timestamp; compute duration; subagent writes its scratch file at `.ralph/sessions/<session-id>/<worker-id>.md`
 12. Update the PRD file — set `status: "passed"`, `passes: true`, and `notes` including the squash SHA
 13. Worker returns its one-line summary to the orchestrator
-14. **On loop exit** (all stories complete OR max-iterations OR hard error): orchestrator harvests scratch files → `patterns.md`, finalises `.ralph/<name>.session.md` with finish-line + aggregates, commits both as one `chore(ralph): session N artefacts for <phase>` commit
+14. **On loop exit** (all stories complete OR max-iterations OR hard error): orchestrator runs the harvest step (see "Orchestrator's harvest step at loop close" above): promotes reusable learnings to `patterns.md`, writes the per-session detail log to `.ralph/sessions/<session-id>.md`, finalises `.ralph/<name>.session.md` with finish-line + aggregates, commits the three files as one `chore(ralph): session <id> artefacts for <phase>` commit
 
 ## One Story Per Iteration (in fresh / single modes)
 
