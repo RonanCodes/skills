@@ -12,6 +12,12 @@ The full Matt Pocock workflow as one skill. Grill the brief, write the PRD, slic
 
 The point is the *discipline*, not the tools. Each phase is a contract with the next. A loose PRD is fatal for AFK runs. Horizontal slices leave the agent coding blind. Pocock Flow refuses to skip steps.
 
+## Part of the local factory
+
+This is the orchestration spine of the **local factory** — the family of agent-loop skills that run autonomously on Ronan's machine. Siblings: `/ro:ralph`, `/ro:planner-worker` (alias `/ro:swarm`), `/ro:night-shift`, `/ro:day-shift`. They share artefact shape, gitignore rules, and PR conventions. See `/ro:ralph` § "Run artefacts (the canonical shape)" for the canonical reference.
+
+The companion is the **remote factory** — the Factory app (tracked separately) that runs the equivalent flow as a cloud service.
+
 ## When to invoke
 
 - New feature, new project, new substantial change (anything bigger than a fix).
