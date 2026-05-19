@@ -1,0 +1,77 @@
+# Canonical label system. Machine-readable mirror of canon/labels.md.
+# scripts/migrate-labels.sh reads this file.
+# When you edit this file, also edit canon/labels.md to keep prose + spec in sync.
+
+schema_version: 1
+
+lifecycle:
+  - name: needs-grilling
+    color: "FBCA04"
+    description: "Raw idea, not yet grilled. Day-shift picks these up."
+  - name: ready-for-agent
+    color: "0E8A16"
+    description: "Fully grilled. ACs concrete. An orchestrator can pick this up."
+  - name: in-progress
+    color: "1D76DB"
+    description: "An orchestrator is currently working this. Set on pickup."
+  - name: needs-human
+    color: "B60205"
+    description: "Blocked on a human-only action (dashboard, billing, OAuth, CAPTCHA)."
+
+kind:
+  - name: "kind:prd"
+    color: "0052CC"
+    description: "Parent PRD; tracks child slices via ## Parent references."
+  - name: "kind:slice"
+    color: "5EBEFF"
+    description: "Child of a PRD. The unit of work."
+  - name: "kind:incident"
+    color: "D93F0B"
+    description: "Runtime regression / production incident."
+  - name: "kind:chore"
+    color: "BFBFBF"
+    description: "Housekeeping not tied to a PRD (CI fixes, dep bumps)."
+
+modifiers:
+  - name: hitl-likely
+    color: "D93F0B"
+    description: "Reviewer expected to escalate (orm, schema-migration, billing, OAuth)."
+  - name: parallel-eligible
+    color: "BFE5BF"
+    description: "File-disjoint from siblings; safe to fan out."
+  - name: repo-lock
+    color: "8B0000"
+    description: "Takes a repo-wide lock; serial after parallel drains."
+  - name: bug-fix
+    color: "8B5CF6"
+    description: "Failing test committed first; implementer makes it pass."
+  - name: phase-0
+    color: "E0E0E0"
+    description: "Phase marker (earliest)."
+  - name: phase-1
+    color: "C8C8C8"
+    description: "Phase marker."
+  - name: phase-1.5
+    color: "B0B0B0"
+    description: "Phase marker."
+  - name: phase-2
+    color: "989898"
+    description: "Phase marker."
+  - name: phase-3
+    color: "808080"
+    description: "Phase marker (latest)."
+  - name: from-retro
+    color: "FFF5B1"
+    description: "Auto-created by a night-shift retro (cross-repo routing pattern)."
+  - name: needs-grilling-skipped
+    color: "FFCCCC"
+    description: "Promoted to ready-for-agent without grilling; reviewer should double-check ACs."
+
+# Old name -> new name. The migration script uses gh label edit --name to preserve
+# issue linkage. If the target already exists on a repo, the script falls back to
+# bulk-relabel + delete-old.
+rename_map:
+  "lock-repo": "repo-lock"
+  "expected-hitl": "hitl-likely"
+  "expected-parallel": "parallel-eligible"
+  "blocked-on-human": "needs-human"

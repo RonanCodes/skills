@@ -38,14 +38,18 @@ Unless `--yes`, `--no-grill`, or all four scope flags are passed explicitly, the
 **Probe up front** (before asking anything):
 
 ```bash
-gh issue list --label ready-for-agent --state open --search "-label:prd:draft" --json number,body,labels --limit 200 > /tmp/nightshift-ready.json
-gh issue list --label prd:draft --state open --json number,title,updatedAt --limit 50 > /tmp/nightshift-drafts.json
-# slices vs parent PRDs by body shape:
-#   slice  body opens with `## Parent\n\n#<N>`
-#   parent body opens with `## Problem Statement`
-jq '[.[] | select(.body | startswith("## Parent\n\n#"))] | length' /tmp/nightshift-ready.json   # N_slices
-jq '[.[] | select(.body | startswith("## Problem Statement"))] | length' /tmp/nightshift-ready.json  # N_parents
-jq 'length' /tmp/nightshift-drafts.json                                                              # N_drafts
+# Canonical query (per ~/Dev/ronan-skills/canon/labels.md): kind:slice + ready-for-agent.
+# This is the ONLY set night-shift workers dispatch against. needs-grilling is day-shift's job.
+gh issue list --label kind:slice --label ready-for-agent --state open --search "-label:prd:draft -label:needs-grilling" --json number,body,labels --limit 200 > /tmp/nightshift-ready.json
+# needs-grilling is the canonical equivalent of the legacy prd:draft label; both are
+# excluded from the ready queue. The drafts probe picks up either label for the
+# grill-first / full-drain scope decisions.
+gh issue list --search "is:open is:issue label:needs-grilling,prd:draft" --json number,title,updatedAt,labels --limit 50 > /tmp/nightshift-drafts.json
+# Parents are kind:prd; useful for the auto-slice scope.
+gh issue list --label kind:prd --state open --json number,title,labels --limit 50 > /tmp/nightshift-parents.json
+jq 'length' /tmp/nightshift-ready.json     # N_slices
+jq 'length' /tmp/nightshift-parents.json   # N_parents
+jq 'length' /tmp/nightshift-drafts.json    # N_drafts
 ```
 
 ### Question 1 — Scope

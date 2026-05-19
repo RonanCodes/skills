@@ -216,7 +216,15 @@ Workers are dispatched as **multiple Agent tool calls in a single assistant mess
 
 ### US-3b: File-area conflict detection (hybrid static + scout)
 
-Two parallel workers touching the same files race each other at merge time. The skill mitigates this with a hybrid graph, separate from the `depends_on` graph:
+Two parallel workers touching the same files race each other at merge time. The skill mitigates this with a hybrid graph, separate from the `depends_on` graph.
+
+**Canonical-label hints (read first, free):** before doing any path-set analysis, read these labels from the canonical label system (`~/Dev/ronan-skills/canon/labels.md`):
+
+- `parallel-eligible` — the slicer asserted this slice is file-disjoint from its siblings. The planner treats this as "safe to fan out unless the static pass disagrees with a path overlap".
+- `repo-lock` — the slice takes a repo-wide lock (lockfile churn, schema reset, top-level config rewrite). Mark it serial-only: it runs in its own wave after every parallel-eligible slice drains.
+- `hitl-likely` — reviewer expected to escalate (ORM, schema-migration, billing, OAuth, secret rotation). The planner counts these against the HITL concurrency cap (default 1 in flight at a time) to keep reviewer attention focused.
+
+These hints are advisory: the static pass below still runs and a path conflict still serialises. The labels exist so the planner doesn't need to re-derive the slicer's intent.
 
 **Static pass (every wave, free):** read each candidate slice body for:
 
@@ -249,12 +257,28 @@ Scout outputs are merged into the file-area graph and persist for subsequent wav
 `--no-scout` disables the scout pass entirely (purely static). Use when you'd rather waste worker time on conflicts than spend planner time on probing.
 
 
+### US-3c: Canonical lifecycle transitions
+
+The planner is the lifecycle-label authority while a wave is in flight, per the canonical label system (`~/Dev/ronan-skills/canon/labels.md`):
+
+- **Slice pickup query (GH mode):** `gh issue list --label kind:slice --label ready-for-agent --state open`. The planner picks from this set, applying the conflict graph + label hints above.
+- **On dispatch:** swap `ready-for-agent` → `in-progress` on the chosen issue (single `gh issue edit --add-label in-progress --remove-label ready-for-agent`).
+- **On reviewer reject:** swap `in-progress` → `ready-for-agent` (back into the queue for the next wave).
+- **On HITL escalation:** swap `in-progress` → `needs-human` and post a structured comment naming the human action required.
+- **On PR merge:** the issue auto-closes via `Closes #N`; closed state is the absence of any lifecycle label (no extra `gh` call).
+
+Branch flow: workers branch off their assigned issue with `gh issue develop <issue-number> --name <slug> --checkout` rather than plain `git checkout -b`. This produces the GitHub issue→branch dev-link, which makes `Closes #N` automatic in the PR and lets the night-shift retro walk issue→PR without title-matching.
+
 Worker prompt template (see `scripts/worker-prompt.sh`):
 
 ```
 You are a WORKER agent for /ro:planner-worker.
 
 Issue: .ralph/<name>/issues/<id>-<slug>.md (full body inlined here)
+   OR a GH issue number; in that case, FIRST run:
+     gh issue develop <issue-number> --name <slug> --checkout
+   to branch off the issue (NOT git checkout -b). This produces the
+   issue->branch dev-link required by the canon.
 Worktree: .swarm/worktrees/<id>/
 You are pinned to this worktree. Do NOT touch sibling worktrees.
 
