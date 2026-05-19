@@ -2,7 +2,7 @@
 name: posthog
 description: Interact with PostHog (EU region) — install SDKs, query events, manage feature flags, run experiments, inspect insights. Use when user wants to track events, add analytics, create/toggle a feature flag, set up an A/B test, query product data, or wire PostHog into a TanStack Start app.
 category: analytics
-argument-hint: [install | flag <list|get|create|toggle> | experiment <list|get> | query <hogql> | event <recent>] [--project <id>]
+argument-hint: [install | flag <list|get|create|toggle> | experiment <list|get> | query <hogql> | event <recent> | render-debug-snippet] [--project <id>] [--region us|eu] [--session-id <id>]
 allowed-tools: Bash(curl *) Bash(jq *) Bash(pnpm *) Read Write Edit
 ---
 
@@ -283,6 +283,34 @@ curl -s "${POSTHOG_HOST}/api/projects/" \
   -H "Authorization: Bearer ${POSTHOG_PERSONAL_API_KEY}" \
   | jq '.results[] | {id, name, organization}'
 ```
+
+## render-debug-snippet (generic helper)
+
+Emit a Markdown-ready PostHog debug-info block for pasting into a bug report or GitHub issue. Designed to be called by other skills (e.g. `/ro:gh-ship`, a future bug-report skill) so they don't have to remember the URL shapes.
+
+```bash
+/ro:posthog render-debug-snippet --project 173014 --region eu [--session-id <id>]
+```
+
+Resolution order for `--project` and `--region`:
+
+1. CLI flags (above).
+2. `.ronan-skills.local.json` in the cwd: `{ "posthog": { "project_id": "...", "region": "us|eu" } }`.
+3. Project `.env` / `.dev.vars`: `POSTHOG_PROJECT_ID`, `POSTHOG_REGION`.
+4. If still unset, error loudly. Do not guess.
+
+Output shape (`--session-id` omitted → leaves `<session-id>` as a placeholder for the operator to fill in):
+
+```
+Session: https://us.posthog.com/project/sTMFPsFhdP1Ssg/replay/<session-id>?t=<seconds>
+Admin: http://go/adminOrgEU/<org-id> (project ID 173014)
+```
+
+Notes:
+
+- The `Session:` URL hardcodes the `us.posthog.com/project/sTMFPsFhdP1Ssg/replay/` host because that's the replay UI's stable address regardless of which region the data lives in — PostHog renders EU replays through the US UI.
+- The `Admin:` URL uses Ronan's go-link short URL when `--region eu`; for `--region us` switch to `http://go/adminOrgUS/<org-id>`.
+- Other skills calling this should capture stdout and inline it into their issue body or PR description without further formatting.
 
 ## Env var summary
 
