@@ -16,7 +16,9 @@ This skill is one part of the **local factory** — the family of agent-loop ski
 
 The companion is the **remote factory** — the Factory app (tracked separately) that runs equivalent loops as a cloud service. Story formats and PR conventions are kept compatible so a queue from one can be consumed by the other.
 
-For parallel workers specifically: every worker MUST write its scratch to `.ralph/sessions/<session-id>/<worker-id>.md` (gitignored). The planner harvests learnings into `.ralph/patterns.md` and writes the per-session aggregate to `.ralph/<phase>.session.md` at end-of-wave. No worker touches a shared file. No merge conflicts on the progress log.
+For parallel workers specifically: every worker MUST write its scratch to `.ralph/sessions/<session-id>/<worker-id>.md` (gitignored). The planner harvests learnings into `.ralph/patterns.md`, writes the per-session detail log to `.ralph/sessions/<session-id>.md`, and updates the per-phase rolling aggregate at `.ralph/<phase>.session.md` at end-of-wave. No worker touches a shared file. No merge conflicts on the progress log.
+
+**Close-with-summary** (mandatory for every shipped slice): every worker MUST post a structured comment on the GH issue BEFORE merging via `gh issue comment <N>`. Sections: Shipped, Surprises encountered, Patterns promoted to patterns.md, Local learnings, Follow-ups. See `/ro:ralph` § "Close-with-summary comment (required for every story)" for the canonical body shape. The merger should reject any PR whose linked issue is missing this comment.
 
 ## When to use
 
