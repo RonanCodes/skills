@@ -37,11 +37,20 @@ When `--target gh` is selected, after the interview render the PRD content into 
 ```bash
 gh issue create \
   --title "<feature short title>" \
-  --label "${LABEL:-ready-for-agent}" \
+  --label "kind:prd" \
+  --label "${LIFECYCLE_LABEL}" \
   --body-file -    # piped from the rendered template
 ```
 
-Apply the project's `ready-for-agent` synonym if one is configured (e.g., `Sandcastle` in `mattpocock/course-video-manager`). Detect via `gh label list --json name,description --jq '.[] | select(.description | contains("agent"))'` or by checking `docs/agents/triage-labels.md` for the project-local label name. `--label <name>` flag overrides.
+Lifecycle label rules (per the canonical label system, `~/Dev/ronan-skills/canon/labels.md`):
+
+- Default: `LIFECYCLE_LABEL=needs-grilling`. PRDs start as raw ideas. `/ro:day-shift` will pick them up and grill via AskUserQuestion, then flip to `ready-for-agent` when concrete.
+- If `--skip-grill` is passed, or the user explicitly bypassed the grill during this run (interactive grilling completed inline): `LIFECYCLE_LABEL=ready-for-agent`. Also add `needs-grilling-skipped` so the reviewer knows ACs may be thinner.
+- `kind:prd` is **always** added: this is a parent PRD that `/ro:slice-into-issues` will split into `kind:slice` children referencing `#$PARENT` via `## Parent`.
+
+Legacy project synonyms (e.g. `Sandcastle` in `mattpocock/course-video-manager`) still work via `--label <name>`. Detect via `gh label list --json name,description --jq '.[] | select(.description | contains("agent"))'` or `docs/agents/triage-labels.md`.
+
+After issue creation, point the user at `/ro:day-shift` to start the grill — that's where `needs-grilling` becomes `ready-for-agent`.
 
 ## GitHub-issue body template (Matt Pocock's 7-section PRD)
 

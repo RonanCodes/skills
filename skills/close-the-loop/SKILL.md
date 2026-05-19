@@ -18,6 +18,17 @@ Verification loop that checks your work is actually done — not just "compiles"
 - **URL check** — verify a single page end-to-end.
 - **Design-match** — iterate on a UI until it matches a reference design, component by component.
 
+## Verification-matrix gate (canonical)
+
+This skill is the gatekeeper between `in-progress` and closed in the canonical label system (`~/Dev/ronan-skills/canon/labels.md`). Before allowing an orchestrator (ralph / planner-worker / matt-pocock) to drop the `in-progress` label and let the issue auto-close on PR merge, this skill asserts the verification matrix is complete (canon: factory #98 / #104):
+
+- Unit tests pass for any new pure functions / Zod schemas / DB helpers.
+- Integration tests pass for any new API route.
+- e2e (Playwright) covers any user-facing UI route or flow.
+- The 30-second live smoke checklist in the PR description is checked off.
+
+If any row of the matrix is incomplete, **block the close**: comment on the issue with the specific missing rows, do NOT drop the `in-progress` label. The orchestrator surfaces this as a HITL escalation (label → `needs-human`) or returns the slice to `ready-for-agent` for another pass, per its own escalation policy.
+
 ## Usage
 
 ```

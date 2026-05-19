@@ -77,26 +77,39 @@ Partition each issue into one of:
 
 | Bucket | Detection |
 |---|---|
-| `prd:draft` | Has `prd:draft` label OR body opens with anything other than `## Problem Statement` / `## Parent\n\n#<N>` AND has no gate label |
-| `ready-for-human` | Has `ready-for-human` label |
-| `blocked-on-human` | Has `blocked-on-human` label |
-| `swarm` | Has the gate label (resolved in US-0) AND no `prd:draft` / `ready-for-human` / `blocked-on-human` |
+| `needs-grilling` | Has `needs-grilling` (canonical) OR legacy `prd:draft` label OR body opens with anything other than `## Problem Statement` / `## Parent\n\n#<N>` AND has no gate label |
+| `needs-human` | Has `needs-human` (canonical) OR legacy `ready-for-human` / `blocked-on-human` label |
+| `swarm` | Has the gate label (resolved in US-0; typically `ready-for-agent`) AND no `needs-grilling` / `needs-human` |
 | `needs-triage` | None of the above |
 
-The order matters: an issue with both `prd:draft` and the gate label is `prd:draft` (mislabelled drift; the grill below will fix it).
+The order matters: an issue with both `needs-grilling` and the gate label is `needs-grilling` (mislabelled drift; the grill below will fix it).
+
+This skill is the canonical home of the `needs-grilling → ready-for-agent` transition per the canonical label system (`~/Dev/ronan-skills/canon/labels.md`). When the grill converges, swap labels in one call:
+
+```bash
+gh issue edit <num> --add-label ready-for-agent --remove-label needs-grilling
+```
+
+If the user explicitly bypasses the grill ("skip" / "ship it"), use:
+
+```bash
+gh issue edit <num> --add-label ready-for-agent --add-label needs-grilling-skipped --remove-label needs-grilling
+```
+
+so the reviewer knows the ACs may be thinner.
 
 Print the partition as a one-screen summary:
 
 ```
 Backlog partition (<N> open issues):
 
-  prd:draft         <K>  — need grilling into Pocock 7-section
+  needs-grilling    <K>  — need grilling into Pocock 7-section
   ready-for-human   <K>  — need a user action (resolvable now?)
-  blocked-on-human  <K>  — need an external unblock (still blocked?)
+  needs-human       <K>  — need an external unblock (still blocked?)
   swarm             <K>  — gate-labelled; verify AC matrix
   needs-triage      <K>  — new / unlabelled
 
-Promote candidates (with --max-rounds <N>): <prd:draft + needs-triage + (ready-for-human if user resolves)>
+Promote candidates (with --max-rounds <N>): <needs-grilling + needs-triage + (needs-human if user resolves)>
 ```
 
 ## US-2: For each `swarm`-bucket issue, verify the AC matrix

@@ -43,9 +43,26 @@ For each approved slice, in dependency order (blockers first):
 ```bash
 gh issue create \
   --title "<slice title>" \
-  --label "${LABEL:-ready-for-agent}" \
+  --label "kind:slice" \
+  --label "${LIFECYCLE_LABEL}" \
+  ${MODIFIER_FLAGS} \
   --body-file -
 ```
+
+Lifecycle label rules (per the canonical label system, `~/Dev/ronan-skills/canon/labels.md`):
+
+- Default: `LIFECYCLE_LABEL=needs-grilling` for slices whose ACs are still hand-wavy after the interview. Day-shift will tighten them.
+- If the slice's ACs came out concrete in this run (the typical case after a properly grilled PRD): `LIFECYCLE_LABEL=ready-for-agent`.
+- If the user explicitly bypassed the grill (`--skip-grill` or interactive override): `LIFECYCLE_LABEL=ready-for-agent` **plus** `needs-grilling-skipped` as a modifier so the reviewer double-checks ACs.
+
+Modifier flags (`MODIFIER_FLAGS`) are added when the slice meets the criterion:
+
+- `--label hitl-likely` if the slice touches ORM, schema migrations, billing, OAuth, secret rotation. Reviewer will probably escalate.
+- `--label parallel-eligible` if the slice is file-disjoint from its siblings (planner-worker fans these out).
+- `--label repo-lock` if the slice churns lockfiles, schema reset, or top-level config (planner-worker serialises these).
+- `--label bug-fix` if the slice begins with a failing test that the implementer makes pass.
+
+`kind:slice` is **always** added. Legacy project synonyms (`Sandcastle` etc.) still work via `--label <name>`; `--label <name>` flag overrides the lifecycle pick.
 
 Body template — Matt Pocock's slice shape:
 
@@ -84,8 +101,6 @@ The `### Close-the-loop tests` subsection is **non-negotiable**. Every slice thi
 The downstream planner (`/ro:planner-worker` § "Close-the-loop AC gate") parses the issue body for `### Close-the-loop tests`. If missing it either refuses to dispatch (default) or auto-injects the boilerplate, controlled by the repo-local `.ronan-skills.json` flag `swarm.missing_test_acs: refuse|inject`.
 
 Publishing in dependency order means earlier slices' real issue numbers can be referenced in later slices' `Blocked by` sections. Capture each created issue number as you go.
-
-Apply the project's `ready-for-agent` synonym if one is configured (check `docs/agents/triage-labels.md` for the project-local name, e.g., `Sandcastle`). `--label <name>` flag overrides.
 
 After publishing, comment on the parent PRD issue:
 
