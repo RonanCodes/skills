@@ -10,6 +10,14 @@ allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 
 Multi-agent coding swarm. Sibling to `/ro:ralph`. Where Ralph is one agent doing stories in series, planner-worker is N agents doing stories in parallel under a planner and a merger, with optional judge-agent termination.
 
+## Part of the local factory
+
+This skill is one part of the **local factory** — the family of agent-loop skills that run autonomously on Ronan's machine. Siblings: `/ro:ralph`, `/ro:matt-pocock-coding-workflow`, `/ro:night-shift`, `/ro:day-shift`. They share artefact shape, gitignore rules, and PR conventions. See `/ro:ralph` § "Run artefacts (the canonical shape)" for the canonical reference.
+
+The companion is the **remote factory** — the Factory app (tracked separately) that runs equivalent loops as a cloud service. Story formats and PR conventions are kept compatible so a queue from one can be consumed by the other.
+
+For parallel workers specifically: every worker MUST write its scratch to `.ralph/sessions/<session-id>/<worker-id>.md` (gitignored). The planner harvests learnings into `.ralph/patterns.md` and writes the per-session aggregate to `.ralph/<phase>.session.md` at end-of-wave. No worker touches a shared file. No merge conflicts on the progress log.
+
 ## When to use
 
 - A PRD has been grilled via `/ro:grill-me` and written via `/ro:write-a-prd` and now has 5+ vertical-slice issues to ship

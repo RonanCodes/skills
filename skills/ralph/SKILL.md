@@ -10,6 +10,12 @@ allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 
 Autonomous coding agent loop based on the Ralph Wiggum technique. Each iteration picks one task from a PRD file under `.ralph/` OR from GitHub issues with a configured label (agent-native repo pattern; see `--source github:<label>`), implements it in a **fresh isolated context** by default, opens ONE PR per story, validates, commits, and updates progress.
 
+## Part of the local factory
+
+Ralph is one part of the **local factory** — the family of skills that run autonomous coding loops on Ronan's own machine. Sibling skills in the same family: `/ro:planner-worker` (alias `/ro:swarm`), `/ro:matt-pocock-coding-workflow`, `/ro:night-shift`, `/ro:day-shift`. They share conventions: PR-per-story, squash-merge, Husky-pre-push as the trust gate, `ready-for-agent` labels as the work queue, the per-repo `.claude/repo-mode` for personal vs work, and the artefact shape described in "Run artefacts" below.
+
+The companion is the **remote factory** — the separate Factory app (tracked elsewhere) that runs equivalent loops as a service. Where the local factory shells out from Ronan's terminal, the remote factory will run the same shape against a controlled cloud environment. The two are designed to share story formats and PR conventions so an issue queued for one is queued for the other.
+
 ## Source — repo-mode aware
 
 The `--source` flag picks where stories come from:
@@ -199,49 +205,86 @@ This lets one repo drive multiple concurrent phases/initiatives without progress
 
 **Naming convention:** use kebab-case slugs tied to the phase or initiative — `phase-2a`, `phase-2b-presentation`, `auth-migration`, `docs-refresh`. The slug must match `[a-z0-9-]+`.
 
-**Shared Codebase Patterns:** if `.ralph/patterns.md` exists, treat it as global learnings read on every iteration regardless of which PRD is active. Individual progress files still carry the per-iteration detail.
+**Shared Codebase Patterns:** `.ralph/patterns.md` is the single durable knowledge surface — read at start of every iteration, harvested into at loop close.
 
-## Gitignore Policy (first-run prompt)
+## Run artefacts (the canonical shape)
 
-Before the main loop runs, check `.ralph/.gitignore-policy`. If the file exists, read it and proceed. If missing, ask the user once using `AskUserQuestion`:
+Three classes of file, three different lifecycles:
 
-**Question:** "How should ralph's `.ralph/` folder be handled in git for this repo?"
+| File | Lifecycle | Git status | Who writes |
+|---|---|---|---|
+| `.ralph/patterns.md` | Durable, cross-run | **committed** | Orchestrator harvests at loop close. Subagents read at iteration start. |
+| `.ralph/<phase>.session.md` | Per-session aggregate, write-once | **committed** | Orchestrator only, on session start (heading) and loop close (finish line + aggregates). |
+| `.ralph/sessions/<session-id>/<worker-id>.md` | Per-iteration scratch | **gitignored** | Each worker writes its own file. Dies at session close after harvest. |
+| `.ralph/<phase>.json` (PRD) | Per-phase spec | committed | Authored manually or by `/ro:write-a-prd` once. |
 
-**Options:**
+**Why the split:** the local factory will run parallel workers in git worktrees. A single shared progress file is a merge-conflict pinch point — two workers finishing at the same time clobber each other. Per-worker scratch files avoid that. And most of what a committed progress.txt would carry (PR + SHA + files changed) is already in git's own history, so committing it is duplication. The valuable bits (learnings, decisions) get promoted into `patterns.md` at session close; the rest can die.
 
-1. **commit-all** (recommended) — Track PRDs, progress logs, patterns, and archive. PRs gain spec context, learnings are preserved, mid-phase handoffs work. Pick this unless you have a reason not to.
-2. **commit-archive-only** — Commit `archive/`, `patterns.md`, and the policy file, but gitignore live `prd*.json` + `progress*.txt`. Middle ground — preserves finished-phase history without daily scratch.
-3. **gitignore-all** — Fully gitignore `.ralph/`. Use for private experiments, rapid scratch PRDs, or data vaults where batch PRDs would be noise.
+### Worker scratch file shape
 
-Write the chosen value (one of `commit-all`, `commit-archive-only`, `gitignore-all`) as a single line to `.ralph/.gitignore-policy`, then reconcile the repo's root `.gitignore`:
+Each worker (one per story, in `--mode fresh`) writes to `.ralph/sessions/<session-id>/<worker-id>.md`. The session id is the orchestrator's start timestamp slugged (e.g. `2026-05-19T01-48-54Z`). The worker id is the story id (`us-128`). Contents are short:
 
-| Policy | `.gitignore` entries |
-|--------|----------------------|
-| `commit-all` | *(no entry — remove any existing `.ralph/` line)* |
-| `commit-archive-only` | `.ralph/prd*.json`<br>`.ralph/progress*.txt` |
-| `gitignore-all` | `.ralph/*`<br>`!.ralph/.gitignore-policy` |
+```
+# Worker scratch — US-128
 
-In all three modes, `.ralph/.gitignore-policy` itself is tracked — so the team shares the policy decision. Under `gitignore-all` the pattern must be `.ralph/*` (not `.ralph/`) because git cannot negate files inside a fully-ignored directory.
+started: 2026-05-19T01:49:30+02:00
+finished: 2026-05-19T02:01:52+02:00
+duration: 12m22s
+pr: #138 (squash-merged 55e10e0)
 
-Don't re-prompt once the file exists. To change policy later, edit `.ralph/.gitignore-policy` manually and update `.gitignore` to match.
+## Learnings (for patterns.md harvest)
+- <one or two lines a future story would want to know>
+- <a gotcha that should not happen again>
+
+## Files changed (informational, already in git)
+- src/lib/server/spaced-rep.ts
+- src/lib/server/__tests__/spaced-rep-cap.integration.test.ts
+```
+
+The "what was implemented" prose lives in the PR body — don't duplicate it here.
+
+### Orchestrator's harvest step at loop close
+
+When the loop exits (cleanly, max-iterations, or hard error), the orchestrator MUST:
+
+1. Read every `.ralph/sessions/<session-id>/*.md` file written during the session.
+2. Promote any reusable learnings into `.ralph/patterns.md` under an existing or new section heading. Skip per-story / PRD-specific gotchas — those die with the scratch.
+3. Write the session aggregate to `.ralph/<phase>.session.md` (see "Session timing" below).
+4. Commit `patterns.md` + `<phase>.session.md` together as a single `🧹 chore(ralph): session N artefacts for <phase>` commit on the appropriate branch (a fresh `chore/ralph-session-<id>` branch is fine, or on `main` directly if the run was purely on main).
+5. Leave the scratch directory in place locally so the operator can read it; it's gitignored and will be cleaned up on the next session start (or never — disk is cheap).
+
+### Gitignore policy (no longer prompted)
+
+The new default is fixed:
+
+```gitignore
+# Ralph / local-factory artefacts
+.ralph/sessions/
+.ralph/*.progress.txt
+.ralph/.gitignore-policy
+```
+
+`patterns.md`, `<phase>.session.md`, and `<phase>.json` (PRDs) stay tracked. Everything else under `.ralph/` is ephemeral. The first-run policy prompt is retired — the shape is now standard across the local factory.
+
+For legacy projects that already have a committed `.ralph/progress.txt`: leave it in git history for the audit trail, gitignore the path going forward, and write a follow-up `🧹 chore(ralph): retire legacy progress.txt, harvest learnings into patterns.md` commit that deletes the file from main and copies any surviving learnings into `patterns.md`.
 
 ## How It Works
 
-0. Ensure `.ralph/.gitignore-policy` exists (see "Gitignore Policy" above); if not, prompt once and write it before touching any PRD
-1. **Record session start** in `.ralph/<name>.session.md`: ISO timestamp, mode, max-iterations, reviewer, PRD path (see "Session timing" below)
+0. Ensure `.gitignore` carries the local-factory artefact rules (see "Gitignore policy" above); add the three-line block if it's missing
+1. **Record session start** by writing the `## Session N` heading to `.ralph/<name>.session.md` with timestamp + flags. Compute the session id (start ISO slugged) and create `.ralph/sessions/<session-id>/` for worker scratch files.
 2. Resolve PRD file from `--prd` flag (or default `.ralph/prd.json`) — find the highest priority story where `passes: false`
-3. Read the matching progress file (and `.ralph/patterns.md` if present) — check Codebase Patterns section for learnings from prior iterations
-4. **Record story start** timestamp in the orchestrator's notes (passed to the subagent prompt so it can echo it back in the progress entry)
+3. Read `.ralph/patterns.md` (the durable knowledge surface) — every iteration reads it
+4. **Record story start** timestamp in the orchestrator's notes (passed to the subagent prompt so the worker echoes it back into its scratch file)
 5. **In `--mode fresh`: spawn a fresh subagent for this story.** In `--mode batched`: continue in current context. In `--mode single`: do this story then stop.
 6. Implement the story against the EARS acceptance criteria
 7. Validate (typecheck, lint, test — whatever the project requires; respect Definition of Done if present in the spec)
 8. **Open ONE PR for this story** (no batching; see PR-per-story HARD GUARD above)
-9. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`
+9. Commit with message: `<emoji> <type>(US-NNN): <Story Title>`. Weekday timestamps must fall outside 08:30–18:00 (CLAUDE.md rule) — pass `GIT_AUTHOR_DATE` + `GIT_COMMITTER_DATE` to git commit if running inside that window.
 10. Wait for CI green; auto-merge via squash
-11. **Record story finish** timestamp; compute duration; subagent embeds both into its progress.txt entry
+11. **Record story finish** timestamp; compute duration; subagent writes its scratch file at `.ralph/sessions/<session-id>/<worker-id>.md`
 12. Update the PRD file — set `status: "passed"`, `passes: true`, and `notes` including the squash SHA
-13. Append progress to the matching progress file with timestamps + learnings
-14. **On loop exit** (all stories complete OR max-iterations OR hard error): append the session-finish timestamp + total duration to `.ralph/<name>.session.md`
+13. Worker returns its one-line summary to the orchestrator
+14. **On loop exit** (all stories complete OR max-iterations OR hard error): orchestrator harvests scratch files → `patterns.md`, finalises `.ralph/<name>.session.md` with finish-line + aggregates, commits both as one `chore(ralph): session N artefacts for <phase>` commit
 
 ## One Story Per Iteration (in fresh / single modes)
 
@@ -269,26 +312,30 @@ Skip BOTH tail calls ONLY when:
 
 For the recipes: report path printing in `~/Dev/ronan-skills/skills/completion-report/SKILL.md`; Pushover firing in `~/Dev/ronan-skills/skills/pushover/SKILL.md`. Message shape: state + one concrete metric + what Ronan needs to do next. Example: `"ralph done — 14/14 stories merged, 0 deferred, ready for visual review"` with the report URL attached.
 
-## Progress Report Format
+## Worker scratch format (replaces the old progress.txt)
 
-APPEND to the matching progress file (never replace). The progress file is `.ralph/<name>.progress.txt` when `--prd <name>` is used (e.g. `.ralph/phase-2-onboarding-2026-05-06.progress.txt`), otherwise `.ralph/progress.txt`. **Timestamps are mandatory** so the user can audit when each story actually ran (don't rely on git commit dates; those are often backdated for weekday-hours rules):
+Each worker writes one scratch file at `.ralph/sessions/<session-id>/<worker-id>.md`. Files are gitignored — they die at session close after the orchestrator's harvest step (see "Orchestrator's harvest step" above). The shape:
 
 ```
-## [Story ID]: [Story Title]
-- started: 2026-05-11T23:35:12+02:00
-- finished: 2026-05-11T23:44:41+02:00
-- duration: 9m29s
-- PR: #61 (squash-merged 8240af6)
-- What was implemented
-- Files changed
-- **Learnings for future iterations:**
-  - Patterns discovered
-  - Gotchas encountered
-  - Useful context for next tasks
----
+# Worker scratch — US-128
+
+started: 2026-05-11T23:35:12+02:00
+finished: 2026-05-11T23:44:41+02:00
+duration: 9m29s
+pr: #61 (squash-merged 8240af6)
+
+## Learnings (for patterns.md harvest)
+- <one or two lines a future story would want to know>
+- <a gotcha that should not happen again>
+
+## Files changed (informational)
+- path/one.ts
+- path/two.tsx
 ```
 
-Both `started` and `finished` are real wall-clock ISO 8601 timestamps with offset, NOT the backdated git commit dates. The subagent records `started` first thing after reading its prompt (capture via `date -u +%Y-%m-%dT%H:%M:%S%z` or the local-tz equivalent), and `finished` right before it returns its one-line summary. `duration` is computed in the implementer subagent and embedded; the orchestrator does not need to compute or merge times.
+Both `started` and `finished` are real wall-clock ISO 8601 timestamps with offset, NOT the backdated git commit dates. The subagent records `started` first thing after reading its prompt (capture via `date -u +%Y-%m-%dT%H:%M:%S%z` or the local-tz equivalent), and `finished` right before it returns its one-line summary. `duration` is computed in the implementer subagent and embedded.
+
+The "What was implemented" prose lives in the PR body — don't duplicate it here. The Learnings section is the only part the orchestrator's harvest step cares about; everything else exists for the operator reading the scratch directory locally.
 
 ## Session timing
 
@@ -313,26 +360,41 @@ Both `started` and `finished` are real wall-clock ISO 8601 timestamps with offse
 
 When the loop starts, append a new `## Session N` heading with the start timestamp + flags. When the loop exits (cleanly OR via error OR via max-iterations), edit the session entry to add the finish timestamp + duration + per-story aggregates. If the orchestrator session dies mid-loop (token limit, user disconnect), leave the start timestamp in place; the next `/ralph` invocation appends a new session heading and the prior one is recognisable as "started but never recorded a finish".
 
-Compute the per-story aggregates by summing each story's `duration` field in the progress.txt; the orchestrator does that at loop-exit time.
+Compute the per-story aggregates by summing each worker's `duration` field across the session's scratch directory; the orchestrator does that during the harvest step at loop-exit time.
 
-Total wall-clock and orchestrator-overhead can both be derived: total = `finished - started` from the session line, subagent-sum from the per-story durations, orchestrator-overhead = total minus subagent-sum.
+Total wall-clock and orchestrator-overhead can both be derived: total = `finished - started` from the session line, subagent-sum from the per-worker durations, orchestrator-overhead = total minus subagent-sum.
 
-The session log is committed alongside the PRD + progress under the same `commit-all` gitignore policy.
+The session log is committed (it's small, write-once, and conflict-free because only the orchestrator writes it).
 
+## Codebase Patterns (the durable knowledge surface)
+
+`.ralph/patterns.md` is the single document where carried-over knowledge lives. Read at start of every iteration; written into only at session close by the orchestrator's harvest step.
+
+What goes in:
+
+- Reusable patterns: "Auth helper lives at X, server fns use Y shape, tests live at Z."
+- Gotchas that would trip any future story: "Cloudflare Workers `crypto.subtle` doesn't support MD5; use `node:crypto` createHash via nodejs_compat."
+- Shape decisions: "Drill components carry `data-testid` for Playwright. Pattern is `<drill-type>-<role>`."
+
+What stays out:
+
+- Per-story prose ("US-128 raised the cap to 200") — that's the PR title + body.
+- Per-iteration timestamps — those live in the worker scratch + the session.md aggregate.
+- Speculative "future ideas" — those are GH issues, not patterns.
+
+Shape:
+
+```markdown
 ## Codebase Patterns
 
-Reusable, cross-PRD patterns live in `.ralph/patterns.md` (shared across all named PRDs). Read it on every iteration. Add to it only when you discover a pattern general enough to benefit future stories in any PRD:
-
-```
-## Codebase Patterns
 - Skills use SKILL.md format with YAML frontmatter
 - Vault CLAUDE.md files are thin config, not logic
 - Use wikilinks [[page]] syntax for cross-references
+- Cloudflare Workers `crypto.subtle` does NOT support MD5; use `node:crypto.createHash('md5')` via nodejs_compat
+- Drill components carry stable `data-testid` hooks; e2e specs select on those, not class names
 ```
 
-PRD-specific learnings (gotchas tied to one story, one-off fixes) stay in the per-PRD progress file, not in `patterns.md`.
-
-If `.ralph/patterns.md` does not exist, create it on first use. Legacy projects that only use `.ralph/progress.txt` may continue to keep a `## Codebase Patterns` section at the top of that file — both conventions are supported.
+If `.ralph/patterns.md` does not exist, create it on first use (an empty `## Codebase Patterns` section is fine). Legacy projects with a `## Codebase Patterns` section at the top of `.ralph/progress.txt` should migrate that section into `patterns.md` and gitignore the progress file (see "Gitignore policy" above).
 
 ## Stop Condition
 
@@ -500,6 +562,37 @@ The planner-worker (`/ro:swarm`) ran 4 waves against `RonanCodes/lekkertaal`, 18
 - **Trust local pre-push CI; skip waiting for GitHub Actions.** When the repo has a `.husky/pre-push` hook running the same gauntlet as GH CI (e.g. `pnpm test && pnpm build`), waiting for GH CI to re-run it costs 1-2 minutes per PR for zero added safety. New default: after `git push` succeeds (the hook validates), `gh api -X PUT .../pulls/<N>/merge -f merge_method=squash` immediately. GH CI still runs on the merged commit on main; if a fluke bug lands, post-merge CI flags it and the orchestrator can revert. Frequency of this in the lekkertaal 18-PR run: zero. Setup-time prompt asks the user once: "skip GH CI wait and merge immediately after a clean push? [Y/n]" — persisted in `.ralph/config.json` as `trust-local-ci: true|false`. Branch-protection rules with required-status-checks auto-override to `false`.
 
 These lessons are now baked into the Pocock pattern page: [skill-lab:agent-native-repo-pocock](https://github.com/RonanCodes/llm-wiki-skill-lab-vault/blob/main/wiki/patterns/agent-native-repo-pocock.md) and the planner-worker SKILL: see `/ro:planner-worker` § "Lessons from live runs".
+
+### 2026-05-19: Lekkertaal Phase 2 night shift — committed progress.txt was duplicate of git; subagents didn't backdate weekday commits
+
+Run shape: PRD #127 (drill catalogue parity + spaced-rep loop closure), 10 stories, `--mode fresh --reviewer none`. All 10 PRs merged in ~2h. Follow-up e2e sweep added 8 specs across 3 batch PRs.
+
+What worked:
+- Auto-merge on green CI with no reviewer gate. Husky pre-push gauntlet caught everything CI would have. Zero post-merge regressions.
+- Subagents (one per story) returned one-line summaries; orchestrator dispatched the next without ever touching the working tree mid-loop.
+- Two follow-up issues that subagents naturally surfaced (#139, #140) — left open for review rather than auto-extending the loop.
+
+What went wrong:
+- **`.ralph/<phase>.progress.txt` was ~80% denormalised git history.** PR number, SHA, files changed — all already in `git log` + `gh pr diff`. The valuable bits (timestamps, learnings) were buried inside per-story entries where nobody read them after merge. And in a parallel worktree future this single file becomes a merge-conflict pinch point.
+- **Phase 2 sweep subagents committed inside the 08:30–18:00 forbidden weekday window.** The Husky pre-push doesn't enforce the weekday-hours rule; the orchestrator's prompt to subagents didn't mention backdating; the subagents used real `git commit` and the commits landed at real wall-clock. Not catastrophic, but the rule exists for a reason.
+
+What we changed in the skill (this version):
+- **New artefact shape**: `patterns.md` (committed, durable, harvested at session close) + `<phase>.session.md` (committed, per-session aggregate) + `.ralph/sessions/<id>/<worker>.md` (gitignored worker scratch). Old `.ralph/<phase>.progress.txt` retired; legacy projects gitignore the path and let the historic file live in git history. See "Run artefacts (the canonical shape)" + "Worker scratch format" + "Codebase Patterns (the durable knowledge surface)" above.
+- **Orchestrator harvest step at loop close**: read worker scratch files, promote real learnings into `patterns.md`, finalise `<phase>.session.md`, commit both as one `chore(ralph): session N artefacts for <phase>`. Worker scratch dies (gitignored, disk-cheap, operator can read locally if needed).
+- **First-run gitignore-policy prompt is retired.** Default rules are now fixed (`.ralph/sessions/`, `.ralph/*.progress.txt`, `.ralph/.gitignore-policy`). No more first-run friction.
+- **Backdate rule for weekday commits is now an explicit subagent-prompt clause.** The orchestrator MUST include this in every implementer prompt:
+
+  ```
+  Weekday timestamp rule (CLAUDE.md): commits must fall outside 08:30–18:00 local time. Compute it once and pass via env:
+    if it's currently inside that window AND it's Mon-Fri:
+      pick a backdate (this morning's 07:55 if you started before 08:30; last night's 19:00 otherwise)
+      export GIT_AUTHOR_DATE="<that ISO>"
+      export GIT_COMMITTER_DATE="<that ISO>"
+    else: skip the env, use real time.
+  Use the same backdate for every commit in this iteration so they stay sequential.
+  ```
+
+- **Local factory naming**: this skill (plus planner-worker, matt-pocock-coding-workflow, day-shift, night-shift) is now called the **local factory** — collectively, the suite of agent-loop skills that run on Ronan's machine. The **remote factory** is the companion Factory app (tracked separately) that will run equivalent loops as a cloud service. Sibling skills should reference the local-factory family explicitly.
 
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 

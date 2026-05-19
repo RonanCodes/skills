@@ -12,6 +12,12 @@ The "swarm the factory" trigger. Run inside any repo with a `gh` remote and at l
 
 This is the shortest path between "I'm going to bed" and "the swarm is working", BUT the opening grill (US-0) makes "AFK" mean something explicit. Three AFK modes look identical from the couch and very different in the morning. Pick on purpose.
 
+## Part of the local factory
+
+`/ro:night-shift` is the AFK entrypoint to the **local factory** — the family of agent-loop skills that run autonomously on Ronan's machine. Siblings: `/ro:ralph`, `/ro:planner-worker` (alias `/ro:swarm`), `/ro:matt-pocock-coding-workflow`, `/ro:day-shift`. They share artefact shape (worker-scratch + harvested patterns + per-session aggregate), gitignore rules, and PR conventions. See `/ro:ralph` § "Run artefacts (the canonical shape)" for the canonical reference.
+
+The companion is the **remote factory** — the Factory app (tracked separately) that runs equivalent loops as a cloud service. Story formats and PR conventions are compatible.
+
 ## What it does at a glance
 
 1. **Opening grill (US-0).** Asks four questions about scope, looping, follow-ups, and caps so the user knows exactly what they're authorising. Skipped by `--yes` or `--no-grill` plus the relevant flag overrides.
