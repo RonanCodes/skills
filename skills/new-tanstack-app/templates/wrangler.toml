@@ -1,0 +1,32 @@
+name = "{{APP_NAME}}"
+main = "src/worker.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+APP_NAME = "{{APP_NAME}}"
+APP_ENV = "production"
+
+# Neon (Postgres) connection string. Wrangler secret, not a var.
+# Set via: wrangler secret put NEON_DATABASE_URL --env production
+# For local dev, add NEON_DATABASE_URL=postgresql://... to .dev.vars.
+# Create a Neon project at https://console.neon.tech, then copy the
+# connection string from the dashboard.
+
+[env.production]
+name = "{{APP_NAME}}"
+workers_dev = false
+
+[[env.production.routes]]
+pattern = "{{APP_NAME}}.example.com"
+custom_domain = true
+
+[env.production.observability]
+enabled = true
+
+[env.production.vars]
+APP_NAME = "{{APP_NAME}}"
+APP_ENV = "production"

@@ -1,0 +1,77 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    # docs / retro / chore-artefact pushes must not trigger deploys
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".nightshift/**"
+      - ".ralph/**"
+      - ".completion-reports/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Quality checks (format + lint + build + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm quality
+
+  deploy:
+    name: Deploy to Cloudflare Workers
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: pnpm build
+
+      # Apply only new migrations. drizzle-kit reads the local migrations dir
+      # (drizzle/neon/) and applies only files that haven't run yet against the
+      # Neon Postgres database. Set NEON_DATABASE_URL in the production environment.
+      - name: Apply Neon migrations
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: pnpm db:migrate
+
+      - name: Deploy to Cloudflare Workers (production)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env production
