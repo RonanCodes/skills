@@ -56,7 +56,19 @@ Capture the PR number for the rest of the flow.
 
 ### 4. Watch PR checks
 
-Kick off a Monitor watching the PR's check run:
+**First, check the per-repo CI config.** Some repos run with `wait_for_remote: false` in `.ronan-skills.json` (e.g., when GitHub Actions is billing-blocked or when the team has decided local pre-push validation is sufficient). If so, skip this step entirely and jump to step 5.
+
+```bash
+if [ -f .ronan-skills.json ]; then
+  wait_for_remote=$(jq -r '.ci.wait_for_remote // true' .ronan-skills.json)
+  if [ "$wait_for_remote" = "false" ]; then
+    echo "skip: .ronan-skills.json has ci.wait_for_remote=false — trusting local pre-push quality"
+    # Continue to step 5 (or step 6 if auto_merge_on_local_pass=true)
+  fi
+fi
+```
+
+If `wait_for_remote` is true (or the config file is missing), kick off a Monitor watching the PR's check run:
 
 ```bash
 until s=$(gh run list --branch "$BRANCH" --limit 1 --json status,conclusion \
@@ -78,7 +90,17 @@ If the PR has required status checks and they haven't all reported yet, wait for
 
 ### 5. Ask to merge (unless `--no-merge`)
 
-Via `AskUserQuestion`:
+**Check `.ronan-skills.json` `ci.auto_merge_on_local_pass` first.** When true (and the local pre-push hook already validated format + lint + typecheck + test + build), skip the AskUserQuestion and proceed straight to step 6:
+
+```bash
+auto_merge=$(jq -r '.ci.auto_merge_on_local_pass // false' .ronan-skills.json 2>/dev/null || echo false)
+if [ "$auto_merge" = "true" ]; then
+  echo "auto-merge: .ronan-skills.json has ci.auto_merge_on_local_pass=true — merging without prompt"
+  # Skip the question, go to step 6.
+fi
+```
+
+Otherwise, via `AskUserQuestion`:
 
 > PR #N passed checks. Merge to `$BASE` now? (Options: squash / merge / rebase / not yet)
 
@@ -86,8 +108,15 @@ Default option matches the `--squash|--merge|--rebase` flag (squash if none give
 
 ### 6. Merge
 
+Read merge_method from `.ronan-skills.json` (defaults to `squash`) and use `--admin` to bypass branch protection when remote CI hasn't reported (because we're trusting local pre-push):
+
 ```bash
-gh pr merge "$NUM" --squash --delete-branch    # or --merge / --rebase
+merge_method=$(jq -r '.ci.merge_method // "squash"' .ronan-skills.json 2>/dev/null || echo squash)
+admin_flag=""
+if [ "$(jq -r '.ci.wait_for_remote // true' .ronan-skills.json 2>/dev/null)" = "false" ]; then
+  admin_flag="--admin"   # bypass "checks required" branch protection
+fi
+gh pr merge "$NUM" --"$merge_method" --delete-branch $admin_flag
 ```
 
 If `gh pr merge` fails with "Not possible to fast-forward" after the merge itself succeeded, that's gh trying to update local main — fix with `git fetch origin && git reset --hard origin/main` (safe here because local main hasn't diverged intentionally).
