@@ -167,18 +167,18 @@ Skipped under `--auto-approve` or `--afk`. Rejecting with feedback re-invokes th
 
 ## US-2a: Close-the-loop AC gate
 
-Before dispatching ANY worker, the planner parses each candidate slice body for the marker `### Close-the-loop tests`. Slices missing it are guaranteed leaks: the night-shift swarm only implements what the AC list spells out, so a slice without an explicit e2e AC ships with no Playwright coverage (lesson captured at `[[close-the-loop-tests-acs]]`; canonical example is dataforce #229 / #231).
+Before dispatching ANY worker, the planner parses each candidate slice body for the marker `### Close-the-loop tests` (the narrower predecessor) OR `### Close-the-loop verification matrix` (the full 7-row matrix per [[close-the-loop-verification-matrix]]). Slices missing both are guaranteed leaks: the night-shift swarm only implements what the AC list spells out, so a slice without an explicit e2e AC ships with no Playwright coverage (lesson captured at `[[close-the-loop-tests-acs]]`; canonical example is dataforce #229 / #231).
 
 Behaviour is controlled by the repo-local `.ronan-skills.json` flag `swarm.missing_test_acs`:
 
 - `refuse` (default, safe): print the offending slice ids + bodies, skip dispatching them, fail-loud if zero dispatchable slices remain. Forces the human to either re-run `/ro:slice-into-issues` against the parent PRD (which now emits the section automatically) or hand-edit the slice body and re-queue.
 - `inject`: auto-prepend the boilerplate `### Close-the-loop tests` block (verbatim from `/ro:slice-into-issues`) before dispatch AND tag the issue with the `acs-auto-injected` label (so reviewers know to read the diff for actual test files). Faster but riskier: a worker may implement the slice without writing the tests if the issue body doesn't already reference them in the "What to build" prose.
 
-Parse logic (cheap, no LLM needed):
+Parse logic (cheap, no LLM needed) — accepts EITHER the narrower `### Close-the-loop tests` marker OR the full `### Close-the-loop verification matrix` marker:
 
 ```bash
 issue_body="$(gh issue view "$NUM" --json body --jq .body)"
-if ! grep -q '^### Close-the-loop tests' <<< "$issue_body"; then
+if ! grep -qE '^### Close-the-loop (tests|verification matrix)' <<< "$issue_body"; then
   case "$(jq -r '.swarm.missing_test_acs // "refuse"' .ronan-skills.json)" in
     inject) inject_block_and_label_acs_auto_injected ;;
     *)      mark_slice_skipped_with_reason "missing-close-the-loop-tests" ;;
@@ -312,19 +312,38 @@ If the merger exits `escalated`:
 5. On all-issues-resolved-or-escalated, the run pauses for the user
 6. User fixes the conflict, then `/ro:planner-worker --resume` picks up where we left off
 
-## US-7: Worker failure -> planner re-plan
+## US-7: Worker failure -> planner re-plan (retry-and-split state machine)
 
-If a worker exits stuck:
+Implements [[close-the-loop-verification-matrix]] § "Retry-and-split state machine". If a worker exits stuck:
 
 1. Mark the issue `status: stuck`
-2. Retry ONCE with the failure context inlined in the worker prompt (single retry, not a loop)
-3. If retry still stuck: re-invoke the **planner Agent** with:
+2. **Attempt 2** — Retry ONCE with the failure context inlined in the worker prompt (single retry, fresh context, same models). Capture the failure-class (the matrix row that failed) so the retro can track patterns.
+3. If the retry hits a **different** failure-class, treat that as attempt 2.b (reset, no counter bump): re-dispatch fresh with both failure contexts injected as constraints.
+4. **Attempt 3** — If still stuck on the same failure-class, re-dispatch with model bump (Opus implementer + Opus reviewer; both fresh contexts).
+5. **Auto-split** — If attempt 3 fails: re-invoke the **planner Agent** with:
    - The stuck issue body
-   - The worker's failure log
+   - All three workers' failure logs
+   - The matrix-row(s) that failed across attempts
    - Instructions to decompose this single issue into 2-4 smaller sub-issues that route around the failure mode
-4. New sub-issues are appended to `.ralph/<name>/issues/` with ids like `001a`, `001b` and `depends_on` set sensibly
-5. Original stuck issue is marked `status: replaced-by: [001a, 001b]`
-6. Dispatcher picks up the new sub-issues next cycle
+6. New sub-issues are appended to `.ralph/<name>/issues/` with ids like `001a`, `001b` and `depends_on` set sensibly. When `--github`, they also get GH issue numbers via the standard slicer flow and the parent gets the `split-by-loop` label.
+7. Original stuck issue is marked `status: replaced-by: [001a, 001b]`
+8. Dispatcher picks up the new sub-issues next cycle
+9. **Hard escalation** — If the same parent ancestry triggers auto-split twice (e.g. `001` → `001a` + `001b`, then `001a` → `001a-i` + `001a-ii`), STOP and escalate to HITL via Pushover + Telegram. Anthropic's "0% across many trials = broken task" rule says the spec is wrong, not the agent.
+
+### Emit `failures[]` for the retro
+
+For every auto-split, EVERY model-bumped attempt, AND every successful merge that required >= 2 attempts, append a JSON line to `.swarm/failures.jsonl`:
+
+```json
+{
+  "slice": 234,
+  "mode": "thrashing|proxy-gaming|misalignment|non-convergence|context-drift|runaway-resource|other",
+  "evidence_ref": "<PR url or .swarm/logs/<id>.log>",
+  "narrative": "<one to two sentences>"
+}
+```
+
+`/ro:night-shift-retro` reads `.swarm/failures.jsonl` as part of US-1 (Gather run data) and folds entries into the retro JSON's `failures[]` block. The retro classifier may re-classify the `mode` based on cross-slice patterns (a single `thrashing` looks like `non-convergence`; three across slices is a SYSTEM signal).
 
 This is the **only** path that re-invokes the planner mid-run.
 

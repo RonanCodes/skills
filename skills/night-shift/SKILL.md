@@ -2,7 +2,7 @@
 name: night-shift
 description: Autonomous overnight swarm against the current repo's GitHub backlog. Opens with an explicit scope grill (drain ready-only vs grill-drafts-first vs auto-slice-parents vs full-drain) so the user always knows what AFK means for this run. Loops wave-after-wave with a 4-signal ranker (age + priority + size + unblocks-others), hybrid file-area conflict detection between parallel workers, optional follow-up-issue creation, and an end-of-session nightsheet (GH issue + completion-report HTML) tap-throughable from Pushover/Telegram. Use when you want to kick off the night-shift swarm, drain the backlog, run AFK against GH issues, or "go to bed and wake up to PRs".
 category: development
-argument-hint: [--scope <ready-only|grill-first|auto-slice|full-drain>] [--max-waves <N>] [--max-runtime <duration>] [--workers <N>] [--label <label>] [--build swarm|ralph] [--no-followups] [--no-grill] [--no-ping] [--plan-only] [--yes]
+argument-hint: [--scope <ready-only|grill-first|auto-slice|full-drain>] [--max-waves <N>] [--max-runtime <duration>] [--workers <N>] [--label <label>] [--build swarm|ralph] [--no-followups] [--no-grill] [--no-ping] [--no-retro] [--plan-only] [--yes]
 allowed-tools: Bash Read Write Edit Agent AskUserQuestion
 ---
 
@@ -22,7 +22,8 @@ This is the shortest path between "I'm going to bed" and "the swarm is working",
 6. **Re-rank and re-dispatch (US-4).** If the queue still has unblocked work, run another wave. Loop until terminator.
 7. **Queue refill (US-5).** When the ready queue empties, refill per scope: auto-slice the next parent PRD via a planner sub-agent, grill a `prd:draft`, or stop.
 8. **Workers may open follow-up issues (US-6).** Out-of-scope TODOs surfaced mid-implementation become new `ready-for-agent` issues labelled `nightshift-followup` so they get triaged the next morning, not dropped.
-9. **Nightsheet (US-7).** End-of-session aggregate: a GH issue labelled `nightsheet` summarising what shipped, what's open, what's blocked, plus a `/ro:completion-report` HTML on disk. Pushover and Telegram both fire with `--url file://...` so tapping the phone notification lands in the diff browser.
+9. **Nightsheet (US-7).** End-of-session aggregate: a GH issue labelled `nightsheet` summarising what shipped, what's open, what's blocked, plus a `/ro:completion-report` HTML on disk.
+10. **Retro (Phase 7, see below).** `/ro:night-shift-retro` runs after the swarm exits, captures matrix-row failures and failure modes per slice, files SYSTEM action items against ronan-skills / factory, files PROJECT action items against the current repo as `ready-for-human`, writes a markdown + JSON artefact under `.nightshift/retros/<date>-<run-id>.{md,json}`. Pushover and Telegram fire AFTER the retro so the notification URL deep-links into the retro markdown.
 
 ## US-0: Opening grill — what does AFK mean tonight?
 
@@ -297,6 +298,34 @@ Tapping either notification opens the HTML diff browser. The nightsheet GH issue
 
 Skip BOTH notifications only when `--no-ping` or `--plan-only`.
 
+## US-7 (Phase 7): Run retro
+
+After the swarm exits (clean drain, max-waves, max-runtime, or fatal error) AND after the nightsheet GH issue + completion-report HTML are written, BUT BEFORE the Pushover + Telegram pings fire:
+
+```bash
+/ro:night-shift-retro --run-id "$run_id" --dispatcher night-shift
+```
+
+The retro:
+
+1. Reads `.swarm/nightsheet-*.md`, `.swarm/run-*.md`, `.swarm/status.md`, `.swarm/logs/*.log`, and `gh pr list --search "merged:>=$started_at"` to reconstruct the run.
+2. Classifies each slice's outcome (`merged` / `blocked` / `deferred` / `auto-split`) and failure mode (`thrashing` / `proxy-gaming` / `misalignment` / `non-convergence` / `context-drift` / `runaway-resource` / `other`).
+3. Drafts action items, classified `SYSTEM` (ronan-skills / factory) vs `PROJECT` (current repo, `ready-for-human` label) vs `UNCLEAR` (markdown only).
+4. Writes `.nightshift/retros/<YYYY-MM-DD>-<run-id>.md` + `.json`.
+5. Files cross-repo issues per the routing rules in [[night-shift-retro-and-day-shift]] § "Cross-repo routing" when `.ronan-skills.json` `retros.open_followup_issues: true`.
+6. Drops the retro URL into `.nightshift/last-retro-url.txt` so the subsequent Pushover + Telegram tail call can deep-link into it.
+
+The Pushover + Telegram pings (US-6 above) THEN fire with `--url file://<retro-path>` instead of just the completion-report HTML — tapping the phone notification lands in the retro markdown, which links back to the completion-report HTML and the nightsheet issue.
+
+Skip the retro under any of:
+
+- `--no-retro` (explicit skip)
+- `--plan-only` (nothing ran)
+
+`--no-ping` does NOT skip the retro; it only skips the notification. The retro artefact is always written when work happened.
+
+See `/ro:night-shift-retro` for the full skill definition.
+
 ## Defaults inherited from ronan-skills ≥ 1.56.x
 
 - `--source github:<label>` — read from current repo's GH backlog (passed through to `/ro:planner-worker`)
@@ -336,6 +365,9 @@ Override any by passing the flag explicitly.
 
 # Silent: skip the notification
 /ro:night-shift --no-ping
+
+# No retro artefact (still pings)
+/ro:night-shift --no-retro
 ```
 
 ## When NOT to use
@@ -368,6 +400,8 @@ Override any by passing the flag explicitly.
 - **`/grill` (grill-with-docs)** — invoked by `--scope grill-first` and `--scope full-drain` to promote drafts into Pocock parents.
 - **`/agentic-e2e-flow`** — the full end-to-end pipeline if you also want the swarm-research and grill-with-docs phases upstream. Night-shift is the "I already have a backlog, just drain it" subset.
 - **`/ro:completion-report`** — invoked at end of session to build the HTML deep link.
+- **`/ro:night-shift-retro`** — Phase 7 sibling; captures SYSTEM/PROJECT action items + the markdown+JSON retro artefact deep-linked from Pushover/Telegram.
+- **`/ro:day-shift`** — morning sibling; grills the backlog into shape for tonight's run. Pair these two for the full async chain (see [[night-shift-retro-and-day-shift]]).
 - **`/ro:pushover` + `/ro:telegram`** — fired at end per global CLAUDE.md rule 4.
 
 ## Provenance

@@ -53,12 +53,14 @@ When `--source github:<label>` is active, each iteration:
 2. **Filter out `prd:draft` issues.** See "Filter / scope: prd:draft is NEVER picked up" below — this is a HARD GUARD.
 3. Filter to **slice** issues (body opens with `## Parent\n\n#<N>`) — skip **parent PRD** issues (body opens with `## Problem Statement`). Parents are tracking issues, not work.
 4. Filter to issues with no unsatisfied `Blocked by` (parse `## Blocked by` section, treat closed referenced issues as satisfied).
-5. Pick the highest-priority unblocked slice (tie-break: lowest issue number).
-6. Add label `in-progress` to the chosen issue (creates label if missing).
-7. Implement in a fresh subagent context (same PR-per-story discipline as `local` mode).
-8. Open the PR with `Closes #<slice-number>` in the body — GitHub auto-closes the slice on merge.
-9. Remove `in-progress` label on PR open; the slice auto-closes on merge.
-10. When the last slice for a parent PRD closes, comment "All slices merged" on the parent and close it.
+5. **Close-the-loop matrix gate.** Parse the body for `### Close-the-loop tests` OR `### Close-the-loop verification matrix`. Behaviour per `.ronan-skills.json` `swarm.missing_test_acs` (`refuse` default; `inject` faster but riskier). Mirrors `/ro:planner-worker` US-2a; see [[close-the-loop-tests-acs]] and [[close-the-loop-verification-matrix]] for the AC shapes. Ralph is serial so there's no auto-split — a slice that fails after retries is marked `blocked-on-code` and the next iteration picks up the queue.
+6. Pick the highest-priority unblocked slice (tie-break: lowest issue number).
+7. Add label `in-progress` to the chosen issue (creates label if missing).
+8. Implement in a fresh subagent context (same PR-per-story discipline as `local` mode).
+9. Open the PR with `Closes #<slice-number>` in the body — GitHub auto-closes the slice on merge.
+10. Remove `in-progress` label on PR open; the slice auto-closes on merge.
+11. When the last slice for a parent PRD closes, comment "All slices merged" on the parent and close it.
+12. **On retry / blocked / deferred**, append a JSON line to `.swarm/failures.jsonl` (same format as `/ro:planner-worker` US-7) so `/ro:night-shift-retro` can fold the retry count and failure mode into the retro `failures[]` block. Ralph's serial nature means there's no auto-split; the retro tracks retries-before-success as a SYSTEM signal across runs.
 
 `Closes #N` in the PR body is the load-bearing convention — without it, slices don't auto-close and the queue silently grows stale.
 

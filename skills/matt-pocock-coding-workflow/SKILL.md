@@ -23,6 +23,7 @@ Skip for: bug fixes, lookups, single-file edits, anything where the spec is alre
 ## The flow
 
 ```
+0. Day-shift    → day-shift                      (agent + human grill; only if backlog has open issues)
 1. Grill        → grill-me                       (human in chat)
 2. Plan         → write-a-prd                    (human + agent)
 3. Slice        → slice-into-issues              (agent, human reviews)
@@ -33,6 +34,8 @@ Skip for: bug fixes, lookups, single-file edits, anything where the spec is alre
 
 Each step's output is the next step's input. No step is skippable.
 
+Phase 0 (day-shift) is new as of 2026-05-19. It runs ONLY when the repo has open GitHub issues that may need grilling, promoting, or escalating before the rest of the chain fires. On a greenfield repo with no backlog, skip Phase 0 and start at Phase 1 (grill).
+
 ## Filter / scope: `prd:draft` is NEVER picked up
 
 This skill orchestrates Ralph at step 5. **`prd:draft` issues are NEVER picked up** by the underlying Ralph (or planner-worker) loop. Drafts are ideas captured in the agent-native repo's inbox — freeform body, NOT Pocock's 7-section template, NOT yet grilled.
@@ -42,6 +45,27 @@ To promote a draft into ready work, the user runs `/grill` on the issue (which i
 **Tip:** if you're starting this workflow and not sure whether to grill an existing idea or write a fresh PRD, run `/ro:list-draft-prds` first to see the drafts inbox for the current repo. Then step 1 of this skill grills the picked draft instead of starting from a blank prompt.
 
 The downstream Ralph step honours this exclusion via `gh` query filters; see `/ro:ralph` § "Filter / scope: `prd:draft` is NEVER picked up" for the query-level guards.
+
+## Step 0: Day-shift the backlog before chain (when repo has issues)
+
+Probe whether there's an existing backlog to shape:
+
+```bash
+open_count=$(gh issue list --state open --json number --jq 'length' 2>/dev/null || echo 0)
+```
+
+If `open_count > 0`, invoke `/ro:day-shift` BEFORE the grill phase. The day-shift skill:
+
+- Partitions issues into `prd:draft` / `ready-for-human` / `blocked-on-human` / `swarm` / `needs-triage`.
+- Verifies every `swarm`-labelled issue has the close-the-loop AC block; flips missing ones to `needs-info`.
+- Grills `prd:draft` and `needs-triage` issues (max 3 rounds via `AskUserQuestion`) and either promotes them to `swarm` or escalates them to `blocked-on-human` with a named human action.
+- Forces a daily check on stale `blocked-on-human` issues.
+
+Why this is Phase 0 and not optional: the night-shift / Ralph chain only ships what the AC list says. If yesterday's `ready-for-human` issue is still parked, the loop ignores it. If a `prd:draft` looks superficially ready, the loop dispatches against an ungrilled spec. Day-shift surfaces those before the chain commits to building anything.
+
+If `open_count == 0` (greenfield repo, no backlog): skip Phase 0 entirely, start at Phase 1 (grill).
+
+See [[night-shift-retro-and-day-shift]] for the full async chain this slots into. The skill defers to `/ro:repo-mode`, so work-mode repos read `.ralph/issues/*.md` instead of `gh issue list`.
 
 ## Step 1: Grill
 
