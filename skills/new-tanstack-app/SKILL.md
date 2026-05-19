@@ -340,16 +340,30 @@ Run `/ro:cf-ship` for the full pre-flight gate: typecheck, lint, format, test, D
 
 Every app ships with CI from day one. Two jobs: a `test` job that runs on every push and PR (format + lint + build + test, collapsed into a single `pnpm quality` script), and a `deploy` job that runs only on push to main, gated on `test`, deploying to Cloudflare with secrets from the `production` environment.
 
+**HARD RULES for the deploy workflow** (per [[canon:d1-migrations]]):
+
+1. **Migrations:** `wrangler d1 migrations apply <db-name> --remote`. NEVER a `for f in drizzle/*.sql; do wrangler d1 execute --file=$f` loop. Drizzle's `meta/_journal.json` + the remote `d1_migrations` tracking table are how D1 knows what's already applied. The brute-force loop runs every file every deploy, fans out to ~N API calls per deploy where N is the migration count, and trips CF Workers API rate-limit 10429 on repos with active merge cadence. Real incident: lekkertaal 2026-05-19 (PR `RonanCodes/lekkertaal#169` was the cleanup).
+2. **`paths-ignore` on `push`:** docs-only / retro / chore-artefact pushes should NOT trigger deploys. Filter at least `**/*.md`, `docs/**`, `.nightshift/**`, `.ralph/**`, `.completion-reports/**`. PRs still run the full workflow regardless of paths so reviewers see CI status.
+3. **Use `cloudflare/wrangler-action@v3`** rather than raw `pnpm wrangler` shell calls. The action handles auth + retry + output formatting better and is the canonical pattern (matches dataforce, lekkertaal post-#169, factory).
+
 Create `.github/workflows/ci.yml`:
 
 ```yaml
 name: CI
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+    # docs / retro / chore-artefact pushes must NOT trigger deploys, see HARD RULE 2 above
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".nightshift/**"
+      - ".ralph/**"
+      - ".completion-reports/**"
   pull_request:
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     name: Quality checks (format + lint + build + test)
@@ -379,16 +393,24 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Apply D1 migrations
-        run: pnpm wrangler d1 migrations apply <db-name> --remote
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Apply ONLY new migrations. wrangler reads the local migrations dir
+      # (configured via `migrations_dir` in wrangler.jsonc, defaults to
+      # ./migrations) and the remote `d1_migrations` tracking table, and
+      # applies only files that haven't run yet. 1 API call per deploy.
+      # NEVER replace this with a `for f in *.sql; do execute --file=$f`
+      # loop — see HARD RULES above + [[canon:d1-migrations]].
+      - name: Apply D1 migrations (remote)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply <db-name> --remote
       - name: Deploy worker
-        run: pnpm wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
 ```
 
 If `--posthog` / `--sentry` are set, add `--var` flags to the `wrangler deploy` step (reading from `secrets.SENTRY_DSN` and `secrets.POSTHOG_PROJECT_KEY`), matching the runtime-config pattern from step 8-9.
