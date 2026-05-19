@@ -11,6 +11,8 @@ This is a thin alias for `/ro:planner-worker`. Both invocations resolve to the s
 
 **Use `/ro:planner-worker` directly** — it has the full skill body. `/ro:swarm` exists so the friendlier word also works.
 
+**Use `/ro:night-shift` if you want a multi-wave indefinite drain across the whole backlog**, not just a single planner-worker pass. Night-shift wraps planner-worker with a ranked queue, file-area conflict detection across waves, draft-grilling, parent-PRD auto-slicing, follow-up-issue creation, and an end-of-session nightsheet. It opens with a four-question scope grill so AFK semantics are explicit.
+
 See `~/.claude/plugins/cache/ronan-skills/<v>/skills/planner-worker/SKILL.md` for:
 
 - When to use (and when not to)

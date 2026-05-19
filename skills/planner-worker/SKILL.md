@@ -1,8 +1,8 @@
 ---
 name: planner-worker
-description: Multi-agent coding swarm. Planner / worker / merger over git worktrees on the Max plan. Reads a grilled PRD from `.ralph/<name>/prd.md`, dispatches parallel Claude Code Agent workers (one per vertical-slice issue in its own git worktree), and a merger Agent reviews + merges clean work back to the target branch. Defers to /ro:repo-mode for `--github` default — `personal` repos open PRs and create issues; `work` repos run fully local with no GH side-effects so the swarm stays invisible to the work GH/Jira/ADO project. Alias `/ro:swarm`. Use when you want to kick off the swarm, run a planner+worker swarm, parallel-implement a backlog, run an AFK night-shift coding session, or scale a PRD beyond what a single Ralph loop can chew through.
+description: Multi-agent coding swarm. Planner / worker / merger over git worktrees on the Max plan. Reads a grilled PRD from `.ralph/<name>/prd.md` OR a pre-ranked queue from `/ro:night-shift`, dispatches parallel Claude Code Agent workers (one per vertical-slice issue in its own git worktree) with hybrid file-area conflict detection, and a merger Agent reviews + merges clean work back to the target branch. Defers to /ro:repo-mode for `--github` default — `personal` repos open PRs and create issues; `work` repos run fully local with no GH side-effects so the swarm stays invisible to the work GH/Jira/ADO project. Alias `/ro:swarm`. Use when you want to kick off the swarm, run a planner+worker swarm, parallel-implement a backlog, run an AFK night-shift coding session, or scale a PRD beyond what a single Ralph loop can chew through. For multi-wave indefinite drain + refill, use `/ro:night-shift` (which wraps this).
 category: development
-argument-hint: [--prd <name>] [--workers <N>] [--github] [--judge-agent] [--afk] [--auto-approve] [--skip-grill] [--staging-branch <name>] [--resume] [--max-cycles <N>] [--max-runtime <duration>] [--unsafe-many]
+argument-hint: [--prd <name>] [--queue <path>] [--workers <N>] [--github] [--judge-agent] [--afk] [--auto-approve] [--skip-grill] [--staging-branch <name>] [--resume] [--max-cycles <N>] [--max-runtime <duration>] [--unsafe-many] [--no-scout]
 allowed-tools: Bash Read Write Edit Glob Grep Agent AskUserQuestion
 ---
 
@@ -159,6 +159,14 @@ Workers will run up to N=3 in parallel.
 
 Skipped under `--auto-approve` or `--afk`. Rejecting with feedback re-invokes the planner Agent with the feedback inlined.
 
+## US-2b: Ranked queue input from /ro:night-shift
+
+When invoked with `--queue <path>`, the skill skips US-1 (planner runs) and US-2 (confirmation) and reads the ranked slice list straight from the file. Format is a one-slice-per-line plaintext list of `<issue-number>` (when `--github`) or `<issue-id>` (when local). Used by `/ro:night-shift` to pass its ranker output through and prevent every wave from re-running the planner Agent.
+
+The file is consumed in order — top of file = highest priority. The skill still respects `depends_on` and the US-3b file-area graph; the ranked order only sets dispatch priority among work that's otherwise dispatchable.
+
+`--queue` and `--prd` are mutually exclusive. When `--queue` is set the planner Agent is NOT re-invoked; that's the night-shift loop's job between waves.
+
 ## US-3: Worker dispatch
 
 For each unblocked issue (`depends_on` all `merged` or empty), up to the worker cap:
@@ -168,6 +176,41 @@ For each unblocked issue (`depends_on` all `merged` or empty), up to the worker 
 3. Spawn a Claude Code Agent (default Sonnet) with the issue body as instructions and working directory pinned to the new worktree
 
 Workers are dispatched as **multiple Agent tool calls in a single assistant message** so the runtime fans out. They are independent and do not coordinate.
+
+### US-3b: File-area conflict detection (hybrid static + scout)
+
+Two parallel workers touching the same files race each other at merge time. The skill mitigates this with a hybrid graph, separate from the `depends_on` graph:
+
+**Static pass (every wave, free):** read each candidate slice body for:
+
+- A `## Files touched` or `## Touches` section listing paths
+- An `estimate:` or `paths:` frontmatter array
+- Inline mentions matching `src/...`, `app/...`, `apps/...`, `packages/...`, `drizzle/...`, etc.
+
+Two slices conflict if their declared path sets intersect by exact file OR share a directory at depth ≥ 2 (e.g. `src/routes/settings.tsx` and `src/routes/settings.test.ts` collide via `src/routes/`). Conflicting slices are **never dispatched in the same wave**, even if they're both unblocked.
+
+**Scout pass (only after a wave hits a cross-worker merge conflict):** spawn a one-shot scout sub-agent per remaining candidate slice with the prompt:
+
+```
+You are a SCOUT sub-agent for /ro:planner-worker.
+
+Slice: <issue body inlined>
+
+Task: read the slice and predict the SET of file paths the implementation will touch.
+Output a JSON object on stdout, nothing else:
+  {"paths": ["src/routes/...", "src/lib/..."], "confidence": "high|medium|low"}
+
+Rules:
+- Do not edit anything.
+- Do not run pnpm install or any side-effects.
+- Read the codebase enough to be accurate. ~2-3 min budget.
+- If you cannot tell, output paths: [] with confidence: low.
+```
+
+Scout outputs are merged into the file-area graph and persist for subsequent waves of the same run.
+
+`--no-scout` disables the scout pass entirely (purely static). Use when you'd rather waste worker time on conflicts than spend planner time on probing.
+
 
 Worker prompt template (see `scripts/worker-prompt.sh`):
 
@@ -544,4 +587,5 @@ The answer is persisted in `.swarm.json` as `trust-local-ci: true|false`.
 - `/ro:pushover` — notification fired at end of `--afk` runs
 - `/ro:drain-pr-queue` — clean up old swarm-opened PRs after the run
 - `/ro:swarm` — friendly alias for this skill
+- `/ro:night-shift` — wraps this skill in a multi-wave drain + refill loop with explicit-scope opening grill. Use when you want indefinite overnight runs across the whole backlog, not just one PRD
 - `vaults/llm-wiki-skill-lab/wiki/skills/planner-worker.md` — skill-lab page with provenance

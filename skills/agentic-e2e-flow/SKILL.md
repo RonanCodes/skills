@@ -2,7 +2,7 @@
 name: agentic-e2e-flow
 description: High-level end-to-end orchestrator for autonomous feature delivery. Sequences swarm-research → grill-with-docs → write-a-prd → slice-into-issues → swarm-or-ralph → gh-ship. Defers to /ro:repo-mode for output target — `personal` repos publish PRD and slices as GitHub issues using Matt Pocock's agent-native repo pattern; `work` repos run the same pipeline fully local in gitignored `.ralph/` so nothing leaks to the work GH/Jira/ADO project. Use when the user wants to "kick off the matt pocock flow", "run the autonomous agent flow", "agentic e2e flow", "the high-level flow", "the big flow", "the whole flow", "ship this feature autonomously end-to-end", or asks to drive a feature from idea to merged PR without manual hand-offs between phases.
 category: workflow
-argument-hint: [--build swarm|ralph] [--feature "<short title>"] [--skip-swarm] [--skip-grill] [--label <label>]
+argument-hint: [--build swarm|ralph|night-shift] [--feature "<short title>"] [--skip-swarm] [--skip-grill] [--label <label>] [--yes]
 allowed-tools: Bash Read AskUserQuestion
 ---
 
@@ -182,12 +182,13 @@ All children get the `ready-for-agent` label. Children are published in dependen
 
 Confirmation gate: show the children's URLs as a list. User can edit titles/bodies before the build phase starts.
 
-### Gate 5 — Build (swarm or ralph)
+### Gate 5 — Build (swarm, ralph, or night-shift)
 
 Pick by `--build` flag:
 
-- `--build swarm` (default): `/ro:planner-worker --source github:ready-for-agent`. Parallel multi-agent build across worktrees. Best when slices are independent and you want speed. Opus 4.7 is the default merger.
+- `--build swarm` (default): `/ro:planner-worker --source github:ready-for-agent`. Parallel multi-agent build across worktrees. Best when slices are independent and you want speed. Opus 4.7 is the default merger. One pass — stops when the wave returns.
 - `--build ralph`: `/ro:ralph --source github:ready-for-agent --reviewer opus`. Sequential single-agent loop with Pocock implementer/reviewer split, Opus 4.7 as the default reviewer. Best when slices are dependency-chained (`Blocked by` graph is mostly linear) or when you want one PR open at a time.
+- `--build night-shift`: `/ro:night-shift --scope auto-slice` (or `full-drain` if drafts exist). Multi-wave drain + refill loop. Best when you want to close the WHOLE backlog overnight, not just the parent PRD this flow produced. Opens with the four-question scope grill from `/ro:night-shift` US-0 unless `--yes` is passed.
 
 The build skill picks `ready-for-agent`-labelled issues whose body opens with `## Parent` (slices, not the parent PRD), respects `Blocked by`, opens one PR per slice with `Closes #<slice-number>` in the PR body, and labels the issue `in-progress` while working.
 
