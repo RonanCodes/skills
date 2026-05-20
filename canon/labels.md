@@ -25,6 +25,7 @@ The closed state is the absence of any lifecycle label. Conventional: don't rela
 | `kind:slice` | `5EBEFF` (light blue) | Child of a PRD. The unit of work. Orchestrators pick `kind:slice + ready-for-agent`. |
 | `kind:incident` | `D93F0B` (red) | Runtime regression / production incident. Skip the PRD layer, straight to slice rules. |
 | `kind:chore` | `BFBFBF` (grey) | Housekeeping not tied to a PRD: CI fixes, dep bumps, label migrations, doc tweaks. |
+| `kind:research` | `5319E7` (deep violet) | Research / investigation. Output is documentation, not code. Close-the-loop is a discoverable, bidirectionally-linked doc in `docs/research/` AND the LLM wiki — NOT tests. See [[canon:research-tasks]]. Orchestrators pick `kind:research + ready-for-agent` and route to the research-worker prompt. |
 
 ## Modifiers (additive flags, set as many as apply)
 
