@@ -208,9 +208,10 @@ The file is consumed in order — top of file = highest priority. The skill stil
 
 For each unblocked issue (`depends_on` all `merged` or empty), up to the worker cap:
 
-1. `git worktree add .swarm/worktrees/<id> -b swarm/<id>` from the merge-target branch
-2. Append `.swarm/` to `.gitignore` if not already present (commit only on first run, on a `chore(swarm): gitignore .swarm` commit)
-3. Spawn a Claude Code Agent (default Sonnet) with the issue body as instructions and working directory pinned to the new worktree
+1. `gh issue develop <gh-issue-number> --name swarm/<id>` — creates the branch with the issue↔branch dev-link (canon `ronan-skills/canon/labels.md` § Branch flow). NEVER plain `git checkout -b` here; the dev-link is what makes the `Closes #N` propagation reliable and lets the night-shift retro walk issue↔branch↔PR without title-matching.
+2. `git worktree add .swarm/worktrees/<id> swarm/<id>` — check the just-created branch out into the isolated worktree.
+3. Append `.swarm/` to `.gitignore` if not already present (commit only on first run, on a `chore(swarm): gitignore .swarm` commit)
+4. Spawn a Claude Code Agent (default Sonnet) with the issue body as instructions and working directory pinned to the new worktree
 
 Workers are dispatched as **multiple Agent tool calls in a single assistant message** so the runtime fans out. They are independent and do not coordinate.
 
