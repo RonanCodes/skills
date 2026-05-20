@@ -1,8 +1,8 @@
 ---
 name: new-tanstack-app
-description: Orchestrate scaffolding a new TanStack Start app on the canonical stack (TanStack Start + Drizzle + Cloudflare Workers + shadcn/ui). Dispatches to sub-skills for DB (D1 / Neon), auth (Clerk by default for small SaaS; WorkOS AuthKit as alt-at-scale for B2B 100K+ MAU; Better Auth as alt for owns-the-table / EU-mandate / custom-flows), observability (PostHog, Sentry, UptimeRobot), DNS, ship; plus optional agentic runtime (XState + Vercel AI SDK, LangGraph Phase-2 POA) and Knock notifications. Use when user wants to start, create, scaffold, bootstrap, or kick off a new TanStack Start project / small app / side project.
+description: Orchestrate scaffolding a new TanStack Start app on the canonical stack (TanStack Start + Drizzle + Neon Postgres + Cloudflare Workers + shadcn/ui). Dispatches to sub-skills for DB (Neon default; D1 via --db sqlite), auth (Clerk by default for small SaaS; WorkOS AuthKit as alt-at-scale for B2B 100K+ MAU; Better Auth as alt for owns-the-table / EU-mandate / custom-flows), observability (PostHog, Sentry, UptimeRobot), DNS, ship; plus optional agentic runtime (XState + Vercel AI SDK, LangGraph Phase-2 POA) and Knock notifications. Use when user wants to start, create, scaffold, bootstrap, or kick off a new TanStack Start project / small app / side project.
 category: project-setup
-argument-hint: <app-name> [--db d1|neon] [--auth] [--posthog] [--sentry] [--uptime] [--agent xstate|langgraph] [--ai-sdk] [--knock] [--domain <host>] [--skip-deploy] [--skip-ci] [--skip-styleguide] [--interactive]
+argument-hint: <app-name> [--db sqlite] [--auth] [--posthog] [--sentry] [--uptime] [--agent xstate|langgraph] [--ai-sdk] [--knock] [--domain <host>] [--skip-deploy] [--skip-ci] [--skip-styleguide] [--interactive]
 allowed-tools: Bash(pnpm *) Bash(pnpx *) Bash(wrangler *) Bash(git *) Bash(corepack *) Bash(mkdir *) Bash(cd *) Bash(cp *) Read Write Edit
 ---
 
@@ -13,16 +13,16 @@ Scaffold a new TanStack Start app, then dispatch to sub-skills for the pieces th
 ## Usage
 
 ```
-/ro:new-tanstack-app my-app                              # baseline: D1, no auth, no observability, deploy
+/ro:new-tanstack-app my-app                              # baseline: Neon Postgres, no auth, no observability, deploy
 /ro:new-tanstack-app my-app --interactive                # asks what to wire (uses AskUserQuestion)
-/ro:new-tanstack-app my-app --db neon                    # Postgres via Neon instead of D1
+/ro:new-tanstack-app my-app --db sqlite                  # D1 (SQLite) instead of Neon, for edge-cache / CLI shapes
 /ro:new-tanstack-app my-app --auth                       # + Clerk (default); --auth=workos for B2B-at-scale; --auth=better-auth for the owns-the-table alt
 /ro:new-tanstack-app my-app --posthog --sentry --uptime  # + full observability
 /ro:new-tanstack-app my-app --agent xstate --ai-sdk      # + XState decision machine + Vercel AI SDK (Anthropic/OpenAI/Gemini)
 /ro:new-tanstack-app my-app --knock                      # + Knock (multi-channel notifications: Slack + email + in-app)
 /ro:new-tanstack-app my-app --domain api.ronan.dev       # + custom domain via /ro:cloudflare-dns
-/ro:new-tanstack-app my-app --skip-deploy                # scaffold only, no D1 / no deploy
-/ro:new-tanstack-app my-app --db neon --auth --agent xstate --ai-sdk --knock --posthog --sentry --uptime --domain app.ronan.dev  # full agentic app
+/ro:new-tanstack-app my-app --skip-deploy                # scaffold only, no deploy
+/ro:new-tanstack-app my-app --auth --agent xstate --ai-sdk --knock --posthog --sentry --uptime --domain app.ronan.dev  # full agentic app
 ```
 
 ## What it actually does
@@ -33,8 +33,8 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
 /ro:new-tanstack-app <app> [flags]
   1. scaffold + CF adapter + wrangler binding            (inline)
   2. DB wiring:
-       --db d1 (default)  → inline D1 wiring
-       --db neon          → /ro:neon install + project + push-secret
+       default (Neon)    → /ro:neon install + project + push-secret
+       --db sqlite        → inline D1 wiring
   3. UI: tailwind + shadcn + lucide                       (inline)
   4. Testing + API docs                → /ro:testing-stack install
   5. Code hygiene: prettier + eslint + husky + commitlint (inline)
@@ -59,10 +59,11 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
 - Node 20+
 - `pnpm` (install: `corepack enable pnpm`)
 - `wrangler` 4.x — `pnpm add -g wrangler` (skill checks and offers to install)
-- `CLOUDFLARE_API_TOKEN` in `~/.claude/.env` with Workers Scripts + D1 + Account Settings + Zone DNS scopes
+- `CLOUDFLARE_API_TOKEN` in `~/.claude/.env` with Workers Scripts + Account Settings + Zone DNS scopes
+- `NEON_API_KEY` in `~/.claude/.env` (required for the default Neon DB path; create at console.neon.tech)
 - Git configured
 - For optional flags, the corresponding env vars must be set (skill checks):
-  - `--db neon` → `NEON_API_KEY`
+  - `--db sqlite` → no extra env var needed (D1 is managed via wrangler)
   - `--posthog` → `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_HOST`, `POSTHOG_INGEST_HOST`
   - `--sentry` → `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_REGION_URL`
   - `--uptime` → `UPTIMEROBOT_API_KEY`
@@ -74,7 +75,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
 
 Runs an `AskUserQuestion` preamble to collect:
 
-1. **Database** — D1 (SQLite, default) or Neon (Postgres)?
+1. **Database** — Neon Postgres (default) or D1 SQLite (use `--db sqlite` for edge-cache / CLI shapes)?
 2. **Auth**: Clerk (default for small SaaS, hosted UI components, free to 10K MAU), WorkOS (alt-at-scale: 100K+ MAU plausible, partner needs Admin Portal, near-term SAML SSO), Better Auth (alt for owns-the-table / EU mandate / custom flows), or none?
 3. **Agent runtime** — None / XState (MVP: prescriptive decision machine) / LangGraph POA (Phase 2 migration notes only)?
 4. **LLM provider abstraction** — Install Vercel AI SDK + provider packs?
@@ -118,10 +119,12 @@ Set `app.config.ts` → `preset: 'cloudflare-module'`. Create `wrangler.toml` wi
 
 ### 3. Database — dispatch
 
-- **D1 (default)**: inline wiring. Add `[[d1_databases]]` binding in `wrangler.toml`, then `wrangler d1 create <app-name>_db`, patch `database_id`. Install `drizzle-orm` + `drizzle-kit` with `dialect: 'sqlite'`, `driver: 'd1-http'`.
-- **`--db neon`**: `/ro:neon install` wires Drizzle + `@neondatabase/serverless` with `drizzle-orm/neon-http`. Then `/ro:neon project create <app-name>` and `/ro:neon push-secret` to write `DATABASE_URL` as a wrangler secret.
+Default DB is **Neon Postgres**. Use `--db sqlite` to opt into D1 instead. The canonical pick for SaaS-shape apps is Neon: standard Postgres at any scale, no migration-count API-rate-limit risk, and the HTTP driver works in Cloudflare Workers without TCP sockets. See the db-pick-decision-rule in [llm-wiki](https://github.com/RonanCodes/llm-wiki) for when to deviate.
 
-Either way, create `src/db/schema.ts` with a minimal example table.
+- **Neon (default)**: `/ro:neon install` wires Drizzle + `@neondatabase/serverless` with `drizzle-orm/neon-http`. Then `/ro:neon project create <app-name>` and `/ro:neon push-secret` to write `NEON_DATABASE_URL` as a wrangler secret. Template files at `skills/new-tanstack-app/templates/src/db/neon.ts`, `drizzle/neon/`, and `drizzle/neon/drizzle.config.ts` are copied into the new app. Post-scaffold: create a Neon project at [console.neon.tech](https://console.neon.tech), copy the connection URI, run `wrangler secret put NEON_DATABASE_URL --env production`.
+- **`--db sqlite`**: inline D1 wiring. Add `[[d1_databases]]` binding in `wrangler.toml`, then `wrangler d1 create <app-name>_db`, patch `database_id`. Install `drizzle-orm` + `drizzle-kit` with `dialect: 'sqlite'`, `driver: 'd1-http'`. Use this for edge-cache, CLI tools, or apps that truly need SQLite semantics.
+
+Either way, create `src/db/schema.ts` (Neon: `pgTable`, D1: `sqliteTable`) with a minimal example table.
 
 ### 4. UI stack (always)
 
@@ -340,16 +343,31 @@ Run `/ro:cf-ship` for the full pre-flight gate: typecheck, lint, format, test, D
 
 Every app ships with CI from day one. Two jobs: a `test` job that runs on every push and PR (format + lint + build + test, collapsed into a single `pnpm quality` script), and a `deploy` job that runs only on push to main, gated on `test`, deploying to Cloudflare with secrets from the `production` environment.
 
+**HARD RULES for the deploy workflow:**
+
+1. **Neon migrations (default):** `pnpm db:migrate` (runs `drizzle-kit migrate --config drizzle/neon/drizzle.config.ts`) before the wrangler deploy step. Reads `NEON_DATABASE_URL` from the `production` environment secret. Drizzle applies only unapplied migrations tracked in `drizzle/neon/meta/_journal.json`.
+2. **D1 migrations (`--db sqlite` only):** `wrangler d1 migrations apply <db-name> --remote`. NEVER a `for f in drizzle/*.sql; do wrangler d1 execute --file=$f` loop. Drizzle's `meta/_journal.json` + the remote `d1_migrations` tracking table are how D1 knows what's already applied. The brute-force loop runs every file every deploy and trips CF Workers API rate-limit 10429 on repos with active merge cadence. Real incident: lekkertaal 2026-05-19 (PR `RonanCodes/lekkertaal#169` was the cleanup). See [[canon:d1-migrations]].
+3. **`paths-ignore` on `push`:** docs-only / retro / chore-artefact pushes should NOT trigger deploys. Filter at least `**/*.md`, `docs/**`, `.nightshift/**`, `.ralph/**`, `.completion-reports/**`. PRs still run the full workflow regardless of paths so reviewers see CI status.
+4. **Use `cloudflare/wrangler-action@v3`** rather than raw `pnpm wrangler` shell calls. The action handles auth + retry + output formatting better and is the canonical pattern (matches dataforce, lekkertaal post-#169, factory).
+
 Create `.github/workflows/ci.yml`:
 
 ```yaml
 name: CI
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+    # docs / retro / chore-artefact pushes must NOT trigger deploys, see HARD RULE 2 above
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".nightshift/**"
+      - ".ralph/**"
+      - ".completion-reports/**"
   pull_request:
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     name: Quality checks (format + lint + build + test)
@@ -379,16 +397,19 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Apply D1 migrations
-        run: pnpm wrangler d1 migrations apply <db-name> --remote
+      # Apply only new Neon migrations. drizzle-kit reads drizzle/neon/meta/_journal.json
+      # and applies only migration files that haven't run yet.
+      # NEON_DATABASE_URL must be set in the production environment secret.
+      - name: Apply Neon migrations
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: pnpm db:migrate
       - name: Deploy worker
-        run: pnpm wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
 ```
 
 If `--posthog` / `--sentry` are set, add `--var` flags to the `wrangler deploy` step (reading from `secrets.SENTRY_DSN` and `secrets.POSTHOG_PROJECT_KEY`), matching the runtime-config pattern from step 8-9.
@@ -414,6 +435,7 @@ REPO=<owner>/<repo>
 
 gh secret set CLOUDFLARE_API_TOKEN --env production --repo $REPO --body "$CLOUDFLARE_API_TOKEN"
 gh secret set CLOUDFLARE_ACCOUNT_ID --env production --repo $REPO --body "$CLOUDFLARE_ACCOUNT_ID"
+gh secret set NEON_DATABASE_URL --env production --repo $REPO --body "$NEON_DATABASE_URL"
 # observability (if wired):
 gh secret set SENTRY_DSN --env production --repo $REPO --body "$SENTRY_DSN"
 gh secret set POSTHOG_PROJECT_KEY --env production --repo $REPO --body "$POSTHOG_PROJECT_KEY"
@@ -479,7 +501,7 @@ Delegate to `/ro:commit` so the emoji format and weekday-timestamp rule are enfo
 Print the following after everything runs:
 
 - App name + directory
-- DB: D1 database ID, OR Neon project ID + branch
+- DB: Neon project ID + branch (connection URI set as wrangler secret), OR D1 database ID (if `--db sqlite`)
 - Auth: enabled / disabled (Clerk / WorkOS / Better Auth)
 - Design system: tokens + DESIGN_SYSTEM.md emitted, `/styleguide` route at gate=`requireRole(superadmin,staff)` / `dev-only`
 - Agent runtime: XState (scaffolded reference machine) / LangGraph POA printed / none
@@ -494,7 +516,8 @@ Print the following after everything runs:
 - Every sub-skill has its own safety rules — this orchestrator does not override them.
 - If a sub-skill's required env var is missing, skill fails fast at the top with "Missing: X. Add to `~/.claude/.env`" — does NOT attempt partial setup.
 - `--skip-deploy` implies `--uptime` and `--domain` are also skipped (they're post-deploy).
-- If `wrangler whoami` shows an insufficient-scope token, skill fails fast before any `wrangler d1 create` / `wrangler deploy` call.
+- If `wrangler whoami` shows an insufficient-scope token, skill fails fast before any `wrangler deploy` call.
+- If `NEON_DATABASE_URL` is absent at runtime, `getNeonClient` throws a clear error with setup instructions rather than passing an empty string to the Neon driver.
 
 ## Anti-patterns it guards against
 
@@ -502,6 +525,7 @@ Print the following after everything runs:
 - Silently continuing when a sub-skill fails (bad state + partial deploy)
 - Assuming a token has full Workers scope without verifying
 - Using TCP drivers for Postgres inside Workers (Neon HTTP driver only — enforced by `/ro:neon`)
+- Defaulting new SaaS apps to D1: D1 is SQLite-on-edge, not Postgres. Migration-count API rate limits (CF 10429) hit active repos at ~100 migrations. Use D1 only via explicit `--db sqlite` for edge-cache / CLI shapes where SQLite semantics are the right fit.
 
 ## See also
 
