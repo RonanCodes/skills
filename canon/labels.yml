@@ -31,6 +31,9 @@ kind:
   - name: "kind:chore"
     color: "BFBFBF"
     description: "Housekeeping not tied to a PRD (CI fixes, dep bumps)."
+  - name: "kind:research"
+    color: "5319E7"
+    description: "Research/investigation. Output is docs not code; close-the-loop is a doc in docs/research/ + LLM wiki. See canon/research-tasks.md."
 
 modifiers:
   - name: hitl-likely

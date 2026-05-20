@@ -183,6 +183,8 @@ CLI: `--no-scout` disables scout pass entirely (purely static).
 
 ## US-3: Wave dispatch
 
+**`kind:research` issues are first-class queue citizens.** The ranked-queue probe (US-1) includes `kind:research` alongside `kind:slice`. Research issues only ever touch `docs/research/`, so they never conflict on file-areas with code workers and are always safe to fan out (treat as `parallel-eligible`). When a peeled issue carries `kind:research`, planner-worker routes it to the research-worker prompt and asserts the research close-the-loop matrix (doc + index + wiki ingest + bidirectional links) instead of tests — see [[canon:research-tasks]] + planner-worker US-3d. A wave can freely mix code slices and research issues.
+
 For each wave:
 
 1. From ranked queue, peel issues in score order that satisfy: deps met AND no file-area overlap with already-peeled-this-wave AND `status != stuck`. Stop when wave hits `--workers N`.

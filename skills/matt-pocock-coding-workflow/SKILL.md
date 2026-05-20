@@ -105,6 +105,8 @@ Invoke `/slice-into-issues`. The slicing skill takes the PRD and:
 
 Pause for the human to review the module map and the issue files before looping.
 
+**Research spikes:** if the PRD needs investigation before (or alongside) implementation — pedagogy research, competitor teardown, an architecture spike — emit those as `kind:research` issues. They route to the research-worker flow in Step 5 (deep research → cited doc in `docs/research/` + LLM wiki, no tests) per [[canon:research-tasks]], and their docs feed the downstream implementation slices.
+
 ## Step 4: Choose mode
 
 Use AskUserQuestion to ask the user:

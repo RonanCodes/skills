@@ -177,7 +177,9 @@ Skipped under `--auto-approve` or `--afk`. Rejecting with feedback re-invokes th
 
 ## US-2a: Close-the-loop AC gate
 
-Before dispatching ANY worker, the planner parses each candidate slice body for the marker `### Close-the-loop tests` (the narrower predecessor) OR `### Close-the-loop verification matrix` (the full 7-row matrix per [[close-the-loop-verification-matrix]]). Slices missing both are guaranteed leaks: the night-shift swarm only implements what the AC list spells out, so a slice without an explicit e2e AC ships with no Playwright coverage (lesson captured at `[[close-the-loop-tests-acs]]`; canonical example is dataforce #229 / #231).
+**`kind:research` issues BYPASS this gate.** A research/investigation issue legitimately has no test matrix — its close-the-loop is a doc in `docs/research/` + the LLM wiki, per [[canon:research-tasks]]. When a candidate issue carries `kind:research`, skip the test-AC check below, dispatch the **research-worker prompt** (see "US-3d: Research-worker mode"), and let the merger assert the **research close-the-loop matrix** (doc exists + index updated + wiki ingested + bidirectional issue↔doc links) instead of tests.
+
+Before dispatching ANY non-research worker, the planner parses each candidate slice body for the marker `### Close-the-loop tests` (the narrower predecessor) OR `### Close-the-loop verification matrix` (the full 7-row matrix per [[close-the-loop-verification-matrix]]). Slices missing both are guaranteed leaks: the night-shift swarm only implements what the AC list spells out, so a slice without an explicit e2e AC ships with no Playwright coverage (lesson captured at `[[close-the-loop-tests-acs]]`; canonical example is dataforce #229 / #231).
 
 Behaviour is controlled by the repo-local `.ronan-skills.json` flag `swarm.missing_test_acs`:
 
@@ -272,7 +274,11 @@ The planner is the lifecycle-label authority while a wave is in flight, per the 
 
 Branch flow: workers branch off their assigned issue with `gh issue develop <issue-number> --name <slug> --checkout` rather than plain `git checkout -b`. This produces the GitHub issue→branch dev-link, which makes `Closes #N` automatic in the PR and lets the night-shift retro walk issue→PR without title-matching.
 
-Worker prompt template (see `scripts/worker-prompt.sh`):
+### US-3d: Research-worker mode (`kind:research`)
+
+When the dispatched issue carries `kind:research`, the planner routes to the **research-worker prompt** instead of the code-worker template below, and the merger asserts the **research close-the-loop matrix** instead of tests. The full prompt + matrix + folder convention live in [[canon:research-tasks]]. In short: the worker does deep web research (WebSearch + WebFetch + `/ro:perplexity-research`), writes a cited doc to `docs/research/<slug>/README.md` with bidirectional issue↔doc front-matter, updates the `docs/research/README.md` index, ingests the doc into the designated LLM wiki vault via `/ro:wiki`, posts a close-with-summary comment, and opens a docs-only PR. CI gate is lint/build only — research PRs touch `docs/**`, never application code, so there are no unit/integration/e2e tests to wait on. Research issues are always `parallel-eligible` (they only touch `docs/research/`, never conflicting with code workers' file-areas).
+
+Worker prompt template (code workers; for `kind:research` see US-3d above and [[canon:research-tasks]]):
 
 ```
 You are a WORKER agent for /ro:planner-worker.
