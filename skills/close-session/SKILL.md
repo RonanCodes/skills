@@ -26,7 +26,7 @@ Do NOT use for:
 - Tiny edits where there's nothing to capture
 - Inside an autonomous loop (Ralph / planner-worker handle their own state)
 
-## The checklist (8 checks, each skippable)
+## The checklist (8 checks + 1 partnership sub-check, each skippable)
 
 Run in order. Each check is a separate `AskUserQuestion` so the user can resolve, queue, or skip per item.
 
@@ -82,14 +82,40 @@ If the current branch's work isn't represented by an open GH issue (and the repo
 
 The reflective check. Ask the user directly:
 
-> "Looking back at this session — was there anything decided in conversation that isn't yet in code, an ADR, a GH issue, a CONTEXT.md entry, or a wiki page?"
+> "Looking back at this session — was there anything decided in conversation that isn't yet in code, an ADR, a GH issue, a Jira ticket, a Confluence page, a CONTEXT.md entry, or a wiki page?"
 
 If yes, for each decision:
 
-- Offer the right durable home: ADR (for hard-to-reverse architectural decisions; create `docs/adr/000N-*.md` inline), CONTEXT.md (for domain language), GH issue (for action items), wiki page (for reusable knowledge worth carrying across projects).
+- Offer the right durable home based on audience:
+  - **ADR** — hard-to-reverse architectural decision (create `docs/adr/000N-*.md` inline)
+  - **CONTEXT.md** — domain language
+  - **GH issue** — internal action item (Skip/Ronan implementation queue)
+  - **Jira ticket (DAFO)** — partner-visible action item or research request (Taskforce, Bernt, Guy, Quint, or anything they need to see/agree on). Use `/ro:jira create`
+  - **Confluence page** — partner-shared research, agreement, or RFC. Use `/ro:confluence create`
+  - **Wiki page** — reusable knowledge worth carrying across projects
 - Skill drafts the entry and asks user to approve before writing.
 
-If the user can't recall, prompt with categories: "anything about architecture? domain terms? scope changes? things you tried and rejected?" Memory `feedback_call_out_assumptions.md` — do not invent decisions; if the user says nothing material happened, accept that.
+**Partner-visibility heuristic** — auto-suggest Jira/Confluence routing when:
+
+- This session mentioned Taskforce, Bernt, Guy, Quint, or Dataforce
+- Working directory is under `~/Dev/ai-projects/dataforce*`
+- The decision involves an agreement, a deliverable, or research that partners need to verify
+
+When that fires, the Atlassian options (`/ro:jira create`, `/ro:confluence create`) jump to the top of the destination list. Internal-only decisions still default to GH issue.
+
+If the user can't recall, prompt with categories: "anything about architecture? domain terms? scope changes? things you tried and rejected? anything Taskforce should see?" Memory `feedback_call_out_assumptions.md` — do not invent decisions; if the user says nothing material happened, accept that.
+
+### Check 5b — DAFO tickets needing a status move
+
+Skip unless the session touched the `dataforce` repo or any DAFO ticket was referenced in chat.
+
+If it did:
+
+- Ask: "any DAFO tickets that should move based on what shipped this session?"
+- For each: offer `/ro:jira move <KEY> "In Review"` (PR merged, not yet live) or `/ro:jira move <KEY> done` (live in production — the strict rule from the partnership chat).
+- If a Confluence page was authored this session that links to a DAFO ticket, offer to mirror the link the other way via `/ro:confluence link`.
+
+This check enforces the partnership convention: Jira reflects partner-facing state, and the move to Done only happens when shipped.
 
 ### Check 6 — New domain terms in CONTEXT.md?
 
@@ -163,3 +189,4 @@ This skill is the discipline.
 - `[[agentic-e2e-flow]]` — the start-of-session counterpart for feature work.
 - `[[pickup]]` — the re-entry skill for vaults (project-side equivalent is on the roadmap).
 - `[[agent-native-repo-pocock]]` — the pattern that makes durable state actually capture-able.
+- `/ro:jira`, `/ro:confluence`, `/ro:jira-to-gh` — Atlassian capture surfaces invoked from Check 5 and Check 5b for partner-visible work.
