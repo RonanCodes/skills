@@ -4,13 +4,13 @@
     "name": "Ronan Connolly"
   },
   "metadata": {
-    "description": "Ronan's personal 117 skills marketplace for Claude Code."
+    "description": "Ronan's personal 118 skills marketplace for Claude Code."
   },
   "plugins": [
     {
       "name": "ro",
       "source": "./",
-      "description": "117 skills for development workflow, quality, browser/visual, audio/media, research, and project setup."
+      "description": "118 skills for development workflow, quality, browser/visual, audio/media, research, and project setup."
     }
   ]
 }
