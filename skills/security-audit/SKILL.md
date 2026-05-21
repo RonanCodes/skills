@@ -34,6 +34,7 @@ Catches the things you'd be embarrassed (or fired) to ship publicly: API tokens,
 | **Large binary files** (>5MB committed) | git ls-files | 🟡 Warning |
 | **`.gitignore` coverage gaps** | template comparison | 🔵 Info |
 | **OS cruft** (`.DS_Store`, `Thumbs.db`) | git ls-files | 🔵 Info |
+| **Auth posture** (edge gate, phishing-resistant MFA, session hygiene) | Phase H heuristics | 🟡 Warning |
 
 ## Process
 
@@ -184,6 +185,29 @@ dist/
 build/
 ```
 Show only the *missing* ones, not the present ones.
+
+### 9a. Phase H — Auth posture
+
+For any app with a sign-in (look for `clerk`, `better-auth`, `workos`, an `auth` route, or a session cookie), check it against the **authentication-hardening playbook** (`llm-wiki-security/wiki/playbooks/authentication-hardening.md`). Auth is the main attack surface once data is encrypted, so flag gaps:
+
+```bash
+# Is there a public login route on what looks like a single-user / internal app?
+git ls-files | grep -iE 'routes/.*(sign-in|login|auth)' | head
+# Any phishing-resistant factor wired? (passkey / webauthn / FIDO)
+grep -rilE 'passkey|webauthn|fido2?' src 2>/dev/null | head
+# SMS / TOTP-only MFA (NOT phishing-resistant) used as the second factor?
+grep -rilE 'sms|twilio|totp|otp' src 2>/dev/null | head
+# Long-lived / never-expiring sessions?
+grep -rinE 'maxAge|expiresIn|session.*(ttl|expir)' src 2>/dev/null | head
+```
+
+Warn (not block) when:
+- A single-user or internal app exposes a public login route instead of gating at the edge (Cloudflare Access + WARP). Recommend the edge-gate pattern.
+- MFA is SMS/TOTP-only with no phishing-resistant option (passkey/FIDO2/WebAuthn). Recommend adding passkeys (NIST 800-63B AAL2+, CISA gold standard).
+- Sessions are long-lived with no re-auth (step-up) before sensitive actions.
+- Auth secrets/JWT-signing keys are not in a secret store.
+
+Point the user at the playbook for the full standard rather than restating it here.
 
 ### 10. Report
 

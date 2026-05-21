@@ -279,6 +279,14 @@ function ProfileExample() {
 
 `useAuth()` is light: token + auth state + IDs. Use when you only need to gate UI or get a session token. `useUser()` is heavier: full user object. Use sparingly; prefer fetching server-side via `clerkClient()` and passing through a route loader.
 
+## Passkeys + phishing-resistant MFA (canon, do this by default)
+
+Per the `authentication-hardening` playbook (`llm-wiki-security/wiki/playbooks/authentication-hardening.md`), auth is the main attack surface, so enable a **phishing-resistant factor** by default. In the Clerk dashboard → "User & Authentication" → enable **Passkeys** (WebAuthn), and prefer them over SMS. Passkeys/FIDO2 meet NIST 800-63B AAL2+ and are the CISA gold standard; SMS and TOTP are phishable (a fake page relays the code in real time).
+
+- Enable Passkeys; keep SMS off as a primary second factor.
+- Short session lifetimes; require re-authentication (Clerk supports step-up) before sensitive actions.
+- For a **single-user / internal** app, consider skipping Clerk entirely and gating at the edge with Cloudflare Access + WARP (see the playbook), no public login form at all.
+
 ## --social github,google
 
 Clerk handles social providers in the dashboard, no app code change. Open the Application page, navigate to "User & Authentication" → "Social Connections", toggle GitHub or Google, paste the OAuth client ID + secret you got from each provider's developer console.

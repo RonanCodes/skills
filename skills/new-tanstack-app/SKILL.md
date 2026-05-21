@@ -76,7 +76,7 @@ This skill is an **orchestrator** — it owns the baseline scaffolding (scaffold
 Runs an `AskUserQuestion` preamble to collect:
 
 1. **Database** — Neon Postgres (default) or D1 SQLite (use `--db sqlite` for edge-cache / CLI shapes)?
-2. **Auth**: Clerk (default for small SaaS, hosted UI components, free to 10K MAU), WorkOS (alt-at-scale: 100K+ MAU plausible, partner needs Admin Portal, near-term SAML SSO), Better Auth (alt for owns-the-table / EU mandate / custom flows), or none?
+2. **Auth**: Cloudflare Access + WARP (recommended for single-user / internal / personal apps, edge-gated, phishing-resistant, no in-app login), Clerk (default for multi-user small SaaS, enable passkeys), WorkOS (alt-at-scale: 100K+ MAU, Admin Portal, SAML SSO), Better Auth (alt for owns-the-table / EU mandate / custom flows), or none? In all cases offer passkeys; see the authentication-hardening playbook.
 3. **Agent runtime** — None / XState (MVP: prescriptive decision machine) / LangGraph POA (Phase 2 migration notes only)?
 4. **LLM provider abstraction** — Install Vercel AI SDK + provider packs?
 5. **Notifications** — Knock (multi-channel) / Resend-only / none?
@@ -182,7 +182,13 @@ Reference: `connections-helper/docs/adr/0002-github-branch-protection-squash-onl
 
 ### 7. `--auth` → `/ro:clerk install` (default), `/ro:workos install` (alt-at-scale), or `/ro:better-auth install` (alt-optionality)
 
-Default: delegate to `/ro:clerk install`. Clerk (hosted UI components, free to 10K MAU, fastest first sign-in) is the canonical pick for small SaaS where speed-to-market matters.
+**Security canon (applies to every auth path).** Auth is the main attack surface once data is encrypted, so make it secure by default, per the `authentication-hardening` playbook (`llm-wiki-security/wiki/playbooks/authentication-hardening.md`):
+
+- **Always offer a phishing-resistant factor (passkey / FIDO2 / WebAuthn).** It's the NIST 800-63B AAL2+ and CISA gold standard; SMS/TOTP are phishable. Whichever provider is chosen below, enable passkeys and don't ship SMS-only MFA.
+- **Single-user / internal / personal apps: prefer gating at the edge** with **Cloudflare Access + WARP device posture** instead of a public login form, the app stays unreachable to the internet and the attack surface collapses to "CF edge + IdP". (This is the Tailscale-equivalent on Workers; Tailscale itself only gates self-hosted boxes.) For these, auth may need no in-app provider at all, just Access + a JWT-verify in the Worker. Surface this as the recommended option when the app is described as "just me" / internal / personal.
+- **Short sessions + step-up re-auth** before sensitive actions; auth/signing secrets in a secret store.
+
+Default (multi-user / public SaaS): delegate to `/ro:clerk install`. Clerk (hosted UI components, free to 10K MAU, fastest first sign-in) is the canonical pick for small SaaS where speed-to-market matters; enable passkeys in the Clerk dashboard.
 
 Flip to `/ro:workos install` when any of these is true:
 - MAU is expected to cross 100K within 12 months (Clerk's per-MAU cost ramps; WorkOS is free to 1M MAU).

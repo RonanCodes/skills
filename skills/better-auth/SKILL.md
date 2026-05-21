@@ -245,6 +245,10 @@ export const auth = betterAuth({
 
 `RESEND_API_KEY` is the exception — it's global (`~/.claude/.env`), shared across all apps.
 
+## Phishing-resistant MFA (canon, do this by default)
+
+Per the `authentication-hardening` playbook (`llm-wiki-security/wiki/playbooks/authentication-hardening.md`), enable a **phishing-resistant factor** by default. Better Auth ships a **passkey (WebAuthn)** plugin, add it rather than relying on password + email/SMS OTP. Passkeys/FIDO2 meet NIST 800-63B AAL2+ and are the CISA gold standard; SMS/TOTP are phishable. Also: short sessions + step-up re-auth before sensitive actions, and (for single-user/internal apps) consider gating at the edge with Cloudflare Access + WARP instead of a public login.
+
 ## Safety
 
 - Never put `BETTER_AUTH_SECRET` in `~/.claude/.env` — it MUST be per-app so compromise of one app doesn't forge sessions for all apps.

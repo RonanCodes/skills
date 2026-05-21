@@ -250,6 +250,10 @@ printf '%s' "$CLOUDFLARE_ACCOUNT_ID"      | gh secret set CLOUDFLARE_ACCOUNT_ID 
 - Migrating away from the Global API Key — that's a one-time manual port
 - Per-project `.dev.vars` (wrangler secrets) — different concept; see `/ro:cf-ship`
 
+## Gating an app with Cloudflare Access + WARP (auth canon)
+
+This skill mints API tokens; it does not set up app auth. But the canonical way to protect a single-user / internal / personal app on Workers is **Cloudflare Access** (edge gate, so the app is never publicly reachable) + **WARP device posture** (only enrolled devices pass) + a **phishing-resistant passkey** at the IdP. This is the Tailscale-equivalent on Workers (Tailscale gates self-hosted boxes, not Workers). Full standard: the `authentication-hardening` playbook (`llm-wiki-security/wiki/playbooks/authentication-hardening.md`); `/ro:new-tanstack-app` offers this as the recommended auth path for personal apps.
+
 ## See also
 
 - `/ro:domain` — register domains on Porkbun, ties into this skill for the NS handoff to Cloudflare
