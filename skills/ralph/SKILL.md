@@ -652,7 +652,7 @@ What we changed in the skill (this version):
   Use the same backdate for every commit in this iteration so they stay sequential.
   ```
 
-- **Local factory naming**: this skill (plus planner-worker, matt-pocock-coding-workflow, day-shift, night-shift) is now called the **local factory** — collectively, the suite of agent-loop skills that run on Ronan's machine. The **remote factory** is the companion Factory app (tracked separately) that will run equivalent loops as a cloud service. Sibling skills should reference the local-factory family explicitly.
+- **Local factory naming**: this skill (plus planner-worker, matt-pocock-coding-workflow, day-shift, night-shift) is now called the **local factory** — collectively, the suite of agent-loop skills that run on Ronan's machine. The **remote factory** is the companion Factory app (tracked separately) that will run equivalent loops as a cloud service. Sibling skills should reference the local-factory family explicitly. As of Phase 4 (2026-05-22) the remote factory is expanding beyond the coding loop to the **full lifecycle** (idea intake → build → launch) driven by a conversational PI agent over a shared `initiative` spine; the build-loop story/PR conventions stay compatible with the local factory, and its build stage references the user's tracker (GitHub today, Jira/Linear later) rather than owning it.
 
 ## PRD File Format (prd.json or phase-N-slug-YYYY-MM-DD.json)
 
