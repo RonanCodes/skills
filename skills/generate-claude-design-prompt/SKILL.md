@@ -66,7 +66,7 @@ Keep one design covering all screens unless they're unrelated. Order screens by 
 
 ### 3. Emit / update the GitHub design-input issue (agent-native repos)
 
-When this runs for a repo using the Pocock flow, write a **`blocked-on-human`** issue (NOT `ready-for-agent`, it's a human task):
+When this runs for a repo using the Pocock flow, write a **human-checkpoint** issue (NOT `ready-for-agent`, it's a human task). Use the repo's actual human-checkpoint label, which varies: `gh label list` and pick whichever exists, `blocked-on-human` or `needs-human` (the agent-native default in repos like lekkertaal). The issue is *unblocked* (nothing gates it) but it stays a human task, so the human-only label is correct even when no prior issue blocks it.
 
 - Title: `[design-input] <area> — Claude Design links + screenshots (human checkpoint)`
 - Body: the full prompt from step 2, the per-screen briefs, the stack/visual constraints, and a **"what to paste back"** section: the Claude Design share link (one design is fine) + one screenshot per screen (for the reviewer's visual-diff) + any deviating tokens.
