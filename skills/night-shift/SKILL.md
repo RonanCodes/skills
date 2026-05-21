@@ -1,6 +1,6 @@
 ---
 name: night-shift
-description: Autonomous overnight swarm against the current repo's GitHub backlog. Opens with an explicit scope grill (drain ready-only vs grill-drafts-first vs auto-slice-parents vs full-drain) so the user always knows what AFK means for this run. Loops wave-after-wave with a 4-signal ranker (age + priority + size + unblocks-others), hybrid file-area conflict detection between parallel workers, optional follow-up-issue creation, and an end-of-session nightsheet (GH issue + completion-report HTML) tap-throughable from Pushover/Telegram. Use when you want to kick off the night-shift swarm, drain the backlog, run AFK against GH issues, or "go to bed and wake up to PRs".
+description: Autonomous overnight swarm against the current repo's GitHub backlog. Opens with a pre-flight summary (how many slices are ready to drain, how many drafts/parents need grilling/slicing, how many issues are blocked on a human and why) then asks "grill now or drain what's ready?" so the user always knows what AFK means for this run. Loops wave-after-wave with a 4-signal ranker (age + priority + size + unblocks-others), hybrid file-area conflict detection between parallel workers, optional follow-up-issue creation, and an end-of-session nightsheet (GH issue + completion-report HTML) tap-throughable from Pushover/Telegram. Use when you want to kick off the night-shift swarm, drain the backlog, run AFK against GH issues, or "go to bed and wake up to PRs".
 category: development
 argument-hint: [--scope <ready-only|grill-first|auto-slice|full-drain>] [--max-waves <N>] [--max-runtime <duration>] [--workers <N>] [--label <label>] [--build swarm|ralph] [--no-followups] [--no-grill] [--no-ping] [--no-retro] [--plan-only] [--yes]
 allowed-tools: Bash Read Write Edit Agent AskUserQuestion
@@ -20,7 +20,7 @@ The companion is the **remote factory** — the Factory app (tracked separately)
 
 ## What it does at a glance
 
-1. **Opening grill (US-0).** Asks four questions about scope, looping, follow-ups, and caps so the user knows exactly what they're authorising. Skipped by `--yes` or `--no-grill` plus the relevant flag overrides.
+1. **Pre-flight + opening grill (US-0).** Probes the backlog and prints a plain-English summary — how many slices are ready to drain, how many drafts/parents need grilling/slicing first, and how many issues are blocked on a human (with the one-line reason each is stuck). Then asks: grill now, or drain what's ready? Plus follow-up questions on looping, follow-ups, and caps. Skipped by `--yes` or `--no-grill` plus the relevant flag overrides.
 2. **Rank the queue (US-1).** 4-signal weighted score: age, priority label, size/scope, unblocks-others count. Top of the ranked queue runs first.
 3. **Build the dep + file-area graph (US-2).** Hybrid static (read slice bodies for declared paths) plus a probe-scout fallback if the first wave hits cross-worker merge conflicts.
 4. **Dispatch a wave (US-3).** Up to `--workers N` parallel agents in git worktrees, no two on overlapping file-areas, no two violating `## Blocked by` deps. Calls `/ro:planner-worker --skip-grill --queue <ranked-file>`.
@@ -50,18 +50,52 @@ gh issue list --label kind:prd --state open --json number,title,labels --limit 5
 jq 'length' /tmp/nightshift-ready.json     # N_slices
 jq 'length' /tmp/nightshift-parents.json   # N_parents
 jq 'length' /tmp/nightshift-drafts.json    # N_drafts
+# Blocked: needs a human action / external unblock. Workers CANNOT touch these — surface,
+# never silently swallow.
+gh issue list --label blocked-on-human --state open --json number,title,body,labels --limit 50 > /tmp/nightshift-blocked.json
+jq 'length' /tmp/nightshift-blocked.json   # N_blocked
 ```
 
-### Question 1 — Scope
+**Pre-flight summary — ALWAYS print this in chat BEFORE Question 1.** It's the most useful thing the user reads at kickoff: the actual shape of their backlog right now. Make it scannable.
 
-> "What's the scope for this night-shift run?"
+```
+🌙 Night-shift pre-flight for <repo>:
+
+  ✅ Ready to drain now:            <N_slices> slices
+       #282 Connections loading skeleton
+       #283 Topbar avatar skeleton
+       #268 E2E install verification
+  ✏️  Need grilling/slicing first:  <N_drafts> drafts + <N_parents> parent PRDs
+       #174 [PRD] Admin dashboard + RBAC
+       #209 [PRD] Onboarding context capture
+       …
+  🚫 Blocked on you (workers can't touch): <N_blocked>
+       #199 Flip Clerk Dashboard to Waitlist mode  ← gates the whole waitlist chain
+       #208 GitHub Actions billing
+       …
+```
+
+For each blocked item, pull the one-line "what's needed" from the issue body (`## Blocked by` section or first paragraph) so the user sees WHY it's stuck, not just that it is.
+
+### Question 1 — Grill now, or drain what's ready?
+
+Phrase it with the live counts, exactly the decision the user faces:
+
+> "You've got **<N_slices> slices ready to go**. **<N_drafts + N_parents> need a grilling/slicing session** before the swarm can touch them, and **<N_blocked> are blocked on you**. Want to run a grilling session now to open up the blocked/unsliced work, or kick off the swarm on the ready ones and leave the rest for a `/ro:day-shift`?"
 
 | Option | What it does | When recommended |
 |---|---|---|
-| `ready-only` | Drain only existing `ready-for-agent` slices. Stop when empty. No grilling, no slicing. | When `N_slices >= 3` AND `N_parents == 0` AND `N_drafts == 0`. The pure-drain happy path. |
-| `grill-first` | Grill each `prd:draft` into a Pocock 7-section parent, then slice each parent, then drain. | When `N_drafts >= 1`. Adds 5-15 min per draft before workers fire. |
-| `auto-slice` | Slice any open parent PRDs (`## Problem Statement` body) into child slices, then drain. Skips drafts. | When `N_parents >= 1` AND `N_drafts == 0`. |
-| `full-drain` | Everything: grill drafts → slice parents → drain. Closes the most issues. | When the user says "I want to see all issues closed tomorrow" or `N_drafts + N_parents >= 2`. |
+| `ready-only` | Drain only the <N_slices> existing `ready-for-agent` slices. Stop when empty. No grilling, no slicing. | Default when `N_slices >= 1`. The "I'm going to bed, just ship what's ready" path. |
+| `grill-first` | Run a grilling session now: grill each draft into a Pocock 7-section parent, slice each parent, THEN drain. | When the user wants the blocked/unsliced work opened up tonight and is willing to answer questions before sleeping. Adds 5-15 min per draft. |
+| `auto-slice` | Slice open parent PRDs (`## Problem Statement` body) into child slices automatically — no per-question grilling — then drain. | When `N_parents >= 1`, `N_drafts == 0`, and the parents are well-specified enough to slice without grilling. |
+| `full-drain` | Everything: grill drafts → slice parents → drain. Closes the most issues. | "I want to see all issues closed tomorrow" or `N_drafts + N_parents >= 2`. |
+
+Recommendation logic for the `AskUserQuestion` default:
+- `N_slices >= 3` and `N_drafts + N_parents == 0` → recommend `ready-only` (clean drain).
+- `N_slices == 0` and `N_drafts + N_parents >= 1` → recommend `grill-first` (nothing to drain without grilling first; say so plainly).
+- otherwise → recommend `ready-only` and note the unsliced count so the user can opt up to `grill-first`/`full-drain`.
+
+If `N_blocked > 0`, ALWAYS name the blocked items in the question body — the user may want to resolve one on the spot (e.g. the 30-second Clerk dashboard toggle) before going AFK, which unblocks a whole chain.
 
 CLI: `--scope ready-only|grill-first|auto-slice|full-drain`.
 
