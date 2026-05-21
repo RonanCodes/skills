@@ -96,6 +96,28 @@ When all 100 are done, run `scripts/compile.sh` and tell them where the file is.
 
 No setup. The skill creates `~/.claude/voice-profile-state.json` on `start` and `~/.claude/voice-profile.md` on `compile`. Both are gitignored by default.
 
+## Vault- or project-backed state (recommended for durable / wiki-integrated use)
+
+State and output default to `~/.claude/` but are overridable via env vars (see `scripts/common.sh`):
+
+- `VOICE_PROFILE_STATE` — path to the JSON state file
+- `VOICE_PROFILE_OUTPUT` — path to the compiled markdown
+
+To keep a profile inside an llm-wiki vault (versioned, browsable in Obsidian, resumable across machines), export both before any subcommand:
+
+```bash
+export VOICE_PROFILE_STATE="$PWD/vaults/llm-wiki-voice/scratchpad/voice-profile-state.json"
+export VOICE_PROFILE_OUTPUT="$PWD/vaults/llm-wiki-voice/wiki/entities/voice-profile-<name>.md"
+```
+
+**Resume discovery (important).** When the user asks in natural language to "continue / pick up my voice profile" — without typing `/ro:voice-profile resume` — do NOT start a fresh interview. Locate existing state first, in this order:
+
+1. A loaded memory note about a paused voice interview (it names the state path).
+2. `vaults/*/scratchpad/voice-profile-state.json` under the current repo.
+3. The default `~/.claude/voice-profile-state.json`.
+
+If a state file with `status: in_progress` is found, export `VOICE_PROFILE_STATE`/`VOICE_PROFILE_OUTPUT` to point at it, run `status` to reload progress, then behave as `resume`.
+
 ## Output format
 
 `voice-profile.md` follows Hassid's template:
