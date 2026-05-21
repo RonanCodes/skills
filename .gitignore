@@ -13,3 +13,6 @@
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Local-only notes (never commit work-context content)
+CLAUDE.local.md
