@@ -118,7 +118,11 @@ If it returns non-2xx/3xx, surface it immediately. Offer to tail logs:
 wrangler tail
 ```
 
-### 7. Tag + report
+### 7. Infrastructure docs (post-first-deploy)
+
+Once the smoke check passes: if `docs/infrastructure/` does not exist (this is the first successful deploy), OR this deploy changed bindings/resources, run `/ro:infra-docs` to generate (or refresh) living architecture documentation — the live resource inventory, C4 + sequence diagrams, security model, and provisioning runbook. Standing up a new app should always leave it documented. The skill is idempotent, so a periodic re-run after notable deploys keeps it honest.
+
+### 8. Tag + report
 
 Offer to tag the release (optional):
 
@@ -126,7 +130,7 @@ Offer to tag the release (optional):
 git tag -a "deploy-$(date +%Y%m%d-%H%M%S)" -m "🚀 deploy: $(git log -1 --pretty=%s)"
 ```
 
-Report to user: commit SHA, deployed URL, migrations applied, secrets status, smoke-check result.
+Report to user: commit SHA, deployed URL, migrations applied, secrets status, smoke-check result, and whether infra docs were generated/refreshed.
 
 ## Failure modes
 
