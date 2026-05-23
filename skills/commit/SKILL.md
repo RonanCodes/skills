@@ -56,7 +56,7 @@ Single line. Lowercase description. No period at the end. Focus on the "why" not
 2. Do NOT add scope in parentheses — use `✨ feat: thing` not `✨ feat(scope): thing`
 3. Use the emoji that best matches the primary intent of the change
 4. If a commit spans multiple types, use the most significant one
-5. Keep the description under 72 characters
+5. Keep the description under 72 characters. This is not just style: repos with a `commitlint` `commit-msg` hook enforce `header-max-length` (default 100), and the **whole subject line counts**, including the leading emoji + `type: ` prefix (about 8-12 chars). A long subject is rejected with `header must not be longer than 100 characters` and the commit never lands. Under 72 keeps you safely inside it. Put detail in the body, not the subject.
 6. Use imperative mood: "add" not "added", "fix" not "fixed"
 
 ## Workflow
