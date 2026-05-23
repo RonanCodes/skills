@@ -538,6 +538,7 @@ Print the following after everything runs:
 - `/ro:migrate-to-tanstack` — port an existing app to this stack (the migration sibling)
 - `/ro:neon` — Postgres wiring
 - `/ro:clerk` (default auth), `/ro:workos` (alt-at-scale auth), `/ro:better-auth` (alt for owns-the-table cases), `/ro:posthog`, `/ro:sentry`, `/ro:uptimerobot`, `/ro:cloudflare-dns`
+- `/ro:setup-logging` — wire the diagnosable-by-default observability baseline (logtape structured logging that EMITS, request context with trace_id/userId/orgId, trace_id FE→BE, CF `observability.enabled`). Run it during scaffold so the app is debuggable from day one; pairs with `/ro:diagnose`.
 - `/ro:design-system-create` — emits `/styleguide` showcase route + DESIGN_SYSTEM.md spec + cva variants (invoked by step 6a)
 - `/ro:cf-ship` — the deploy pipeline
 - `/ro:commit` — emoji conventional commits

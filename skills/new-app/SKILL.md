@@ -103,3 +103,4 @@ When the wiki gains a new framework leaf, add a row above and a question/answer 
 - `[[stack-decision-map]]` — the canonical tree this skill walks
 - `/ro:migrate-app` — the migration-side sibling (same dispatcher pattern, different leaf set)
 - `/ro:new-tanstack-app`, `/ro:new-astro-app`, `/ro:new-mcp-server` — the leaf skills this dispatcher routes to
+- `/ro:setup-logging` — every scaffolded app should run this for the diagnosable-by-default observability baseline (structured logging + trace_id + CF observability); pairs with `/ro:diagnose`
