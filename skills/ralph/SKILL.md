@@ -186,6 +186,22 @@ The default answer is "keep as two PRs". The agent NEVER bundles silently.
 
 To verify post-merge that the rule held: `gh pr list --state merged --search "(US-" --json title` should show exactly one US-NNN per row. The `/lint --artifacts` skill (when run on a Ralph-produced repo) flags PRs that bundle.
 
+## When the shared CI provider is blocked (fallback)
+
+The local factory leans on the Husky `pre-push` hook as the trust gate (it runs the repo's full local CI: build, typecheck, lint, tests). Some checks only exist server-side (integration suites needing live infra, bundle gates), so GitHub CI is normally the second gate before merge. But the shared provider can be unavailable for reasons unrelated to the code:
+
+- **Actions minutes / spending limit exhausted** — the tell is *every* workflow failing at the job level with no failing step and an empty/`log not found` log.
+- A GitHub incident, or a transient runner/checkout failure (re-run once first; if it persists across re-runs and other workflows fail the same way, treat it as provider-blocked).
+
+When the provider is blocked, do NOT stall the queue. Fall back to:
+
+1. **Local CI is the gate.** A green `pre-push` (never `--no-verify`) is the merge signal. Manually re-check the things that only run server-side (integration tests, bundle size) if the change touches them.
+2. **Merge** the PR. If a stuck required check blocks the button *and* the failure is infra-level (no failing step), use the repo's admin override (`gh pr merge <n> --squash --admin`). Only for infra failures, never to skip a real red test.
+3. **Deploy the default branch manually** with the repo's own deploy command (CI normally does this on merge to the default branch). Apply any pending DB migrations first. Manual deploy usually has no auto-rollback, so smoke the health endpoint + the changed surface yourself.
+4. **Surface the root cause** to the human so the pipeline resumes (e.g. raise the Actions spending limit), then let CI catch up.
+
+Per-repo specifics (the deploy command, the migration step, the account creds) live in that repo's CLAUDE.md. Example: factory documents the full runbook under "When GitHub CI is blocked (fallback runbook)". This is an escape hatch around a broken provider, not a license to skip CI: the local gauntlet must be green.
+
 ## PRD File Resolution
 
 The `--prd <name>` flag selects which PRD file to work from:
