@@ -174,13 +174,18 @@ If they say yes, delegate to the appropriate scaffold step:
 - **Vercel** — `vercel deploy --prod` with `VERCEL_TOKEN` (though `/ro:cf-ship` would already have migrated away from this)
 - **Other** — ask what tool and help write the job
 
-### 9. Report
+### 9. Infrastructure docs (post-first-deploy)
+
+If the deploy succeeded and either `docs/infrastructure/` is absent (first deploy) or this deploy changed bindings/resources, run `/ro:infra-docs` to generate or refresh the living architecture docs (live resource inventory, C4 + sequence diagrams, security model, provisioning runbook). Standing up a new app should leave it documented; the skill is idempotent, so re-run after notable deploys.
+
+### 10. Report
 
 Summarise:
 
 - PR number + URL
 - Merge commit SHA on base
 - Deploy status + deployed URL (if any)
+- Whether infra docs were generated/refreshed
 - Any follow-ups (secrets to set, next manual step)
 
 ## Auto-deploy job template (Cloudflare Workers)
