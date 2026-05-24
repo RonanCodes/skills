@@ -78,6 +78,10 @@ Flags to know:
 - `--dockerfile <path>` — non-default Dockerfile
 - `--build-arg KEY=value` — build-time args
 
+### Infrastructure docs (post-first-deploy)
+
+After a successful deploy, if `docs/infrastructure/` is absent (first deploy) or the deploy changed apps/volumes/secrets/machines, run `/ro:infra-docs` to generate or refresh the living architecture docs (live resource inventory, C4 + sequence diagrams, security model, provisioning runbook). It discovers live Fly state via `flyctl`. Idempotent, so re-run after notable deploys.
+
 ### Status & logs
 
 ```bash
