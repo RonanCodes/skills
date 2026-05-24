@@ -250,6 +250,16 @@ CI policy (skip remote CI, trust the local gate):
 
   Resolution (later wins): default < ~/.claude/ci-policy.json
     < .ro-ci.json (committed) < .ro-ci.local.json (gitignored)
+
+Worktree locking (coordinate multiple agents on one repo):
+  ro worktree acquire          # lock the first free slot; prints the path to cd into
+  ro worktree release [slot]   # free the slot when pushed/done (defaults to cwd's)
+  ro worktree status           # show the slot pool + who holds what
+  ro worktree reap             # free slots idle past TTL (RO_WT_TTL, default 6h)
+
+  Slots: "main" (primary checkout) then Greek worktrees (beta, gamma…), created
+  on demand. Lock file: <main>/.ro/worktree-locks.json (gitignored).
+  Set RO_AGENT to label yourself; always `release` when you've pushed.
 USAGE
 }
 
@@ -435,6 +445,143 @@ cmd_ci_init() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────
+# Worktree locking — coordinate multiple agents on one repo
+#
+# Lock file lives in the PRIMARY checkout at .ro/worktree-locks.json (gitignored).
+# Slots: "main" (the primary checkout) + Greek-suffixed worktrees (beta, gamma…).
+# An agent `acquire`s the first free slot (creating the next Greek worktree if
+# none free), works there on its own branch, then `release`s when pushed/done.
+# Stale busy slots (older than TTL or explicitly past their work) are reaped.
+# ────────────────────────────────────────────────────────────────────────────
+
+WT_TTL_SECONDS="${RO_WT_TTL:-21600}"   # 6h default
+WT_GREEK="beta gamma delta epsilon zeta eta theta"
+
+wt_now()   { date -u +%Y-%m-%dT%H:%M:%SZ; }
+wt_epoch() { date +%s; }
+wt_agent() { echo "${RO_AGENT:-agent-$$@$(hostname -s 2>/dev/null || echo host)}"; }
+
+# Primary checkout path (first entry of `git worktree list`).
+wt_main_dir() {
+  git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}'
+}
+
+wt_lock_file() {
+  local main_dir; main_dir="$(wt_main_dir)" || return 1
+  [[ -z "$main_dir" ]] && return 1
+  echo "${main_dir}/.ro/worktree-locks.json"
+}
+
+# Echo "slot<TAB>path" for every checkout. main first, then -<greek> worktrees.
+wt_slot_paths() {
+  local main_dir; main_dir="$(wt_main_dir)"
+  local repo; repo="$(basename "$main_dir")"
+  echo "main	${main_dir}"
+  git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2}' | tail -n +2 | while read -r p; do
+    local base; base="$(basename "$p")"
+    case "$base" in
+      "${repo}-"*) echo "${base#${repo}-}	${p}" ;;
+    esac
+  done
+}
+
+wt_ensure_lock() {
+  require_jq
+  local lf; lf="$(wt_lock_file)" || die "not inside a git repo"
+  mkdir -p "$(dirname "$lf")"
+  [[ -f "$lf" ]] || echo '{"slots":{}}' > "$lf"
+  # Keep .ro/ out of git.
+  local main_dir; main_dir="$(wt_main_dir)"
+  local gi="${main_dir}/.gitignore"
+  if [[ -f "$gi" ]] && ! grep -qxF '.ro/' "$gi"; then
+    printf '\n# ro agent coordination state\n.ro/\n' >> "$gi"
+  fi
+  echo "$lf"
+}
+
+# Free any busy slot whose acquired_epoch is older than TTL.
+wt_reap() {
+  local lf; lf="$(wt_ensure_lock)"
+  local now; now="$(wt_epoch)"
+  local tmp; tmp="$(mktemp)"
+  jq --argjson now "$now" --argjson ttl "$WT_TTL_SECONDS" '
+    .slots |= with_entries(
+      if (.value.status=="busy") and ((.value.acquired_epoch // 0) < ($now-$ttl))
+      then .value.status="free" | .value.stale=true else . end)
+  ' "$lf" > "$tmp" && mv "$tmp" "$lf"
+}
+
+cmd_wt_status() {
+  local lf; lf="$(wt_ensure_lock)"
+  wt_reap
+  echo "lock: $lf"
+  local main_dir; main_dir="$(wt_main_dir)"
+  echo "slots (path → state):"
+  wt_slot_paths | while IFS="	" read -r slot path; do
+    local st; st="$(jq -r --arg s "$slot" '.slots[$s].status // "free"' "$lf")"
+    local who; who="$(jq -r --arg s "$slot" '.slots[$s].agent // ""' "$lf")"
+    printf "  %-8s %-50s %s %s\n" "$slot" "$path" "$st" "$who"
+  done
+}
+
+cmd_wt_acquire() {
+  local lf; lf="$(wt_ensure_lock)"
+  wt_reap
+  local main_dir repo agent now ep
+  main_dir="$(wt_main_dir)"; repo="$(basename "$main_dir")"
+  agent="$(wt_agent)"; now="$(wt_now)"; ep="$(wt_epoch)"
+
+  # 1) First free existing slot (main, then beta, gamma…).
+  local chosen_slot="" chosen_path=""
+  while IFS="	" read -r slot path; do
+    local st; st="$(jq -r --arg s "$slot" '.slots[$s].status // "free"' "$lf")"
+    if [[ "$st" != "busy" ]]; then chosen_slot="$slot"; chosen_path="$path"; break; fi
+  done < <(wt_slot_paths)
+
+  # 2) None free → create the next Greek worktree.
+  if [[ -z "$chosen_slot" ]]; then
+    local used; used="$(wt_slot_paths | cut -f1)"
+    for g in $WT_GREEK; do
+      if ! echo "$used" | grep -qx "$g"; then chosen_slot="$g"; break; fi
+    done
+    [[ -z "$chosen_slot" ]] && die "worktree pool exhausted ($WT_GREEK)"
+    chosen_path="$(dirname "$main_dir")/${repo}-${chosen_slot}"
+    local base="HEAD"
+    git -C "$main_dir" rev-parse --verify -q main      >/dev/null && base="main"
+    git -C "$main_dir" rev-parse --verify -q origin/main >/dev/null && base="origin/main"
+    git -C "$main_dir" worktree add "$chosen_path" -b "wt/${chosen_slot}-${ep}" "$base" >&2 \
+      || die "worktree add failed"
+  fi
+
+  local tmp; tmp="$(mktemp)"
+  jq --arg s "$chosen_slot" --arg p "$chosen_path" --arg a "$agent" \
+     --arg t "$now" --argjson e "$ep" '
+     .slots[$s] = {path:$p, status:"busy", agent:$a, acquired_at:$t, acquired_epoch:$e, pushed:false}
+  ' "$lf" > "$tmp" && mv "$tmp" "$lf"
+
+  echo "$chosen_path"   # stdout = the path to cd into (everything else is stderr)
+  echo "ro: acquired '${chosen_slot}' for ${agent}" >&2
+}
+
+cmd_wt_release() {
+  local lf; lf="$(wt_ensure_lock)"
+  local target="${1:-}"
+  if [[ -z "$target" ]]; then
+    # Resolve the slot from cwd's worktree path.
+    local here; here="$(git rev-parse --show-toplevel 2>/dev/null)"
+    while IFS="	" read -r slot path; do
+      [[ "$path" == "$here" ]] && { target="$slot"; break; }
+    done < <(wt_slot_paths)
+  fi
+  [[ -z "$target" ]] && die "could not determine slot to release (pass a slot name)"
+  local tmp; tmp="$(mktemp)"
+  jq --arg s "$target" '
+    if .slots[$s] then .slots[$s].status="free" | .slots[$s].pushed=true else . end
+  ' "$lf" > "$tmp" && mv "$tmp" "$lf"
+  echo "ro: released '${target}'" >&2
+}
+
+# ────────────────────────────────────────────────────────────────────────────
 # Dispatch
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -462,6 +609,16 @@ case "${1:-}" in
       init)                     cmd_ci_init ;;
       -h|--help|help)           usage ;;
       *) echo "ro: unknown ci sub-command: ${2}" >&2; usage; exit 2 ;;
+    esac
+    ;;
+  worktree|wt)
+    case "${2:-status}" in
+      acquire)                  cmd_wt_acquire ;;
+      release|done)             cmd_wt_release "${3:-}" ;;
+      status|list)              cmd_wt_status ;;
+      reap)                     wt_reap && cmd_wt_status ;;
+      -h|--help|help)           usage ;;
+      *) echo "ro: unknown worktree sub-command: ${2}" >&2; usage; exit 2 ;;
     esac
     ;;
   -h|--help|help|"")             usage ;;
