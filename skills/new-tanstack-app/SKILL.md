@@ -539,6 +539,7 @@ Print the following after everything runs:
 - `/ro:neon` — Postgres wiring
 - `/ro:clerk` (default auth), `/ro:workos` (alt-at-scale auth), `/ro:better-auth` (alt for owns-the-table cases), `/ro:posthog`, `/ro:sentry`, `/ro:uptimerobot`, `/ro:cloudflare-dns`
 - `/ro:setup-logging` — wire the diagnosable-by-default observability baseline (logtape structured logging that EMITS, request context with trace_id/userId/orgId, trace_id FE→BE, CF `observability.enabled`). Run it during scaffold so the app is debuggable from day one; pairs with `/ro:diagnose`.
+- **`canon/auth-guards.md` (MANDATORY when the app has auth)** — every login-gated page MUST have a server-side `beforeLoad` guard that redirects signed-out users to sign-in; a signed-out visitor must never render a gated page. Classify every route gated/public + run the audit grep. (Lesson: dataforce shipped a guard pass that missed onboarding + install routes → broken/500 pages for signed-out users.)
 - `/ro:design-system-create` — emits `/styleguide` showcase route + DESIGN_SYSTEM.md spec + cva variants (invoked by step 6a)
 - `/ro:cf-ship` — the deploy pipeline
 - `/ro:commit` — emoji conventional commits

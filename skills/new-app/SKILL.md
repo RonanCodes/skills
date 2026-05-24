@@ -104,3 +104,4 @@ When the wiki gains a new framework leaf, add a row above and a question/answer 
 - `/ro:migrate-app` — the migration-side sibling (same dispatcher pattern, different leaf set)
 - `/ro:new-tanstack-app`, `/ro:new-astro-app`, `/ro:new-mcp-server` — the leaf skills this dispatcher routes to
 - `/ro:setup-logging` — every scaffolded app should run this for the diagnosable-by-default observability baseline (structured logging + trace_id + CF observability); pairs with `/ro:diagnose`
+- **`canon/auth-guards.md` (MANDATORY with auth)** — every login-gated page needs a server-side route guard; signed-out users must be redirected, never shown a gated page that then 401/500s

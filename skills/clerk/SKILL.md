@@ -599,6 +599,7 @@ Plan one engineer-week and a week of soft migration window. Same shape as the Wo
 
 ## See also
 
+- **`canon/auth-guards.md` (MANDATORY)** — every login-gated page must have a server-side `beforeLoad` route guard that redirects signed-out users to sign-in. A signed-out visitor must never render a gated page; API 401s and client-side `<Protect>` are not sufficient. Classify every route as gated or public.
 - `/ro:workos` for B2B-at-scale (100K+ MAU expected, partner needs WorkOS Admin Portal, near-term SAML SSO)
 - `/ro:better-auth` for own-the-table cases (RLS, FKs, EU residency mandate, fully custom flows)
 - `/ro:nango` when wiring third-party integrations (Nango sessions are scoped to your authenticated end-user)
