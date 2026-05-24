@@ -33,6 +33,7 @@ set -euo pipefail
 ENV_DIR="${HOME}/.claude"
 ENV_LINK="${ENV_DIR}/.env"
 CONFIG_FILE="${ENV_DIR}/contexts.json"
+CI_CONFIG_FILE="${ENV_DIR}/ci-policy.json"
 
 # Legacy state from v1 (gets migrated on `ro context init` or first resolve)
 LEGACY_ACTIVE="${HOME}/.config/ro/active-context"
@@ -240,6 +241,15 @@ Skills should source via:
 
 Per-repo override (committed):     .ro-context           # one line, just the context name
 Per-repo override (gitignored):    .ro-context.local
+
+CI policy (skip remote CI, trust the local gate):
+  ro ci show                   # print the resolved CI policy (JSON)
+  ro ci get <key>              # print one value (remoteCI | localGate | mergeOnLocalPass | autoDeploy)
+  ro ci where                  # show which files contributed + the resolved policy
+  ro ci init                   # write the global ~/.claude/ci-policy.json with defaults
+
+  Resolution (later wins): default < ~/.claude/ci-policy.json
+    < .ro-ci.json (committed) < .ro-ci.local.json (gitignored)
 USAGE
 }
 
@@ -359,6 +369,72 @@ cmd_diff() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────
+# CI policy — "skip remote CI, trust the local gate" config
+#
+# Resolution (later wins): built-in default < global ~/.claude/ci-policy.json
+#   < committed .ro-ci.json (ancestor) < gitignored .ro-ci.local.json (ancestor)
+#
+# Keys:
+#   remoteCI         "skip" | "require"  — wait on GitHub Actions, or not
+#   localGate        bool  — pre-push runs the full local CI (the real gate)
+#   mergeOnLocalPass bool  — open PR then squash-merge once local gate passed
+#   autoDeploy       bool  — deploy straight after merge
+# ────────────────────────────────────────────────────────────────────────────
+
+ci_default_json() {
+  cat <<'JSON'
+{
+  "remoteCI": "require",
+  "localGate": true,
+  "mergeOnLocalPass": true,
+  "autoDeploy": true
+}
+JSON
+}
+
+resolve_ci_policy() {
+  require_jq
+  local g="{}" c="{}" o="{}" f
+  [[ -f "$CI_CONFIG_FILE" ]] && g="$(cat "$CI_CONFIG_FILE")"
+  f="$(find_ancestor_file '.ro-ci.json' || true)";       [[ -n "$f" ]] && c="$(cat "$f")"
+  f="$(find_ancestor_file '.ro-ci.local.json' || true)"; [[ -n "$f" ]] && o="$(cat "$f")"
+  jq -n \
+    --argjson d "$(ci_default_json)" \
+    --argjson g "$g" --argjson c "$c" --argjson o "$o" \
+    '$d * $g * $c * $o'
+}
+
+cmd_ci_show() { resolve_ci_policy; }
+
+cmd_ci_get() {
+  local key="${1:-}"
+  [[ -z "$key" ]] && die "usage: ro ci get <key>"
+  resolve_ci_policy | jq -r --arg k "$key" '.[$k] // empty'
+}
+
+cmd_ci_where() {
+  local f
+  echo "default:    built-in"
+  echo "global:     ${CI_CONFIG_FILE}$( [[ -f "$CI_CONFIG_FILE" ]] && echo '  (present)' || echo '  (absent)')"
+  f="$(find_ancestor_file '.ro-ci.json' || true)";       echo "committed:  ${f:-none}"
+  f="$(find_ancestor_file '.ro-ci.local.json' || true)"; echo "override:   ${f:-none}"
+  echo "---"
+  echo "resolved:"
+  resolve_ci_policy
+}
+
+cmd_ci_init() {
+  require_jq
+  mkdir -p "$ENV_DIR"
+  if [[ -f "$CI_CONFIG_FILE" ]]; then
+    echo "ro: ${CI_CONFIG_FILE} already exists, leaving it"
+    return 0
+  fi
+  ci_default_json > "$CI_CONFIG_FILE"
+  echo "ro: wrote ${CI_CONFIG_FILE}"
+}
+
+# ────────────────────────────────────────────────────────────────────────────
 # Dispatch
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -376,6 +452,16 @@ case "${1:-}" in
       diff)                     cmd_diff "${3:-}" "${4:-}" ;;
       -h|--help|help)           usage ;;
       *) echo "ro: unknown context sub-command: ${2}" >&2; usage; exit 2 ;;
+    esac
+    ;;
+  ci)
+    case "${2:-show}" in
+      show|resolve)             cmd_ci_show ;;
+      get)                      cmd_ci_get "${3:-}" ;;
+      where)                    cmd_ci_where ;;
+      init)                     cmd_ci_init ;;
+      -h|--help|help)           usage ;;
+      *) echo "ro: unknown ci sub-command: ${2}" >&2; usage; exit 2 ;;
     esac
     ;;
   -h|--help|help|"")             usage ;;
