@@ -35,6 +35,28 @@ The companion is the **remote factory** — the Factory app (tracked separately)
 
 Unless `--yes`, `--no-grill`, or all four scope flags are passed explicitly, the skill opens with four `AskUserQuestion` gates. Each has a project-aware recommendation derived from the current queue state.
 
+### Self-grill mode (`--self-grill`) — AFK with no one to answer
+
+When the user is genuinely AFK ("I'm going AFK, continue with everything"), there's no one to answer the US-0 gates or any mid-run clarifying question. Don't stall and don't silently guess: **self-grill**. For every decision you would otherwise put to the user, pick the recommended/safest option yourself, **record it as an assumption with rationale**, proceed, and surface the whole list in the morning briefing so the user can confirm or correct over coffee.
+
+Triggered by `--self-grill`, or implied whenever the run is AFK and no interactive answers are available (e.g. invoked with "I'm AFK" / "continue with all tasks" and no flags). It does NOT skip the thinking — it makes the thinking auditable.
+
+**Behaviour:**
+
+1. **US-0 gates** → auto-answer each via its existing recommendation logic (Question 1 scope, 2 loop, 3 follow-ups, 4 caps). Log each: `{decision, chosen, rationale, reversible}`.
+2. **Mid-run decisions** (ambiguous slice scope, a draft that needs grilling, a fork in an implementation) → instead of escalating to `blocked-on-human`, self-grill it: write the clarifying questions you'd have asked, answer them with the safest reversible default, log the Q+A+assumption, and proceed. Only escalate to `blocked-on-human` when the decision is genuinely irreversible or needs a credential/access you don't have (deploys, paid actions, destructive ops, external auth).
+3. **Assumptions log** → append every entry to `<repo>/.nightshift/assumptions.md` (gitignored) as a table row. This file is the source for the briefing's "Assumptions" section.
+
+Assumptions-log row shape:
+
+```
+| # | Decision | I chose | Rationale | Reversible? |
+```
+
+Bias: prefer the reversible option, the smaller scope, and the path that leaves a clean PR the user can revert. When two options are equally safe, pick the one that unblocks the most other work. An assumption that turns out wrong should cost one revert, never a data-loss or a surprise spend.
+
+CLI: `--self-grill` (force on), `--no-self-grill` (force the old behaviour: escalate instead of assuming). Default: on when AFK, off when interactive.
+
 **Probe up front** (before asking anything):
 
 ```bash
@@ -136,7 +158,7 @@ Each answer is echoed back as the equivalent CLI flag. The full set of flags for
 
 ### `--yes` / `--no-grill` shortcut
 
-Skips US-0 entirely. Uses defaults: `--scope ready-only`, `--workers 3`, `--max-waves 6`, `--max-runtime 8h`, follow-ups ON. This is the original zero-config behaviour; explicit now so users opt in.
+Skips US-0 entirely. Uses defaults: `--scope ready-only`, `--workers 3`, `--max-waves 6`, `--max-runtime 8h`, follow-ups ON. This is the original zero-config behaviour; explicit now so users opt in. Differs from `--self-grill`: `--yes` takes the defaults silently, `--self-grill` takes the *recommended* answer per gate AND logs each as an auditable assumption for the morning briefing. AFK runs should prefer `--self-grill` so the morning briefing explains every call that was made.
 
 ### Filter / scope: `prd:draft` is NEVER auto-picked
 
@@ -334,19 +356,29 @@ url="file://<completion-report-path>"
 [ -f .nightshift/last-retro-url.txt ]    && url=$(cat .nightshift/last-retro-url.txt)
 [ -f .nightshift/last-briefing-url.txt ] && url=$(cat .nightshift/last-briefing-url.txt)  # wins if present
 
+# Self-grill runs: include the assumptions count so the morning ping says how
+# many calls were made on the user's behalf.
+assume_line=""
+if [ -f .nightshift/assumptions.md ]; then
+  n_assume=$(grep -cE '^\| [A-Z]?[0-9]' .nightshift/assumptions.md 2>/dev/null || echo 0)
+  assume_line=" — ${n_assume} assumptions to confirm"
+fi
+
 bash ~/Dev/ronan-skills/skills/pushover/scripts/notify.sh \
-  "night shift done: <N> merged, <M> stuck, <K> follow-ups" \
+  "night shift done: <N> merged, <M> stuck, <K> follow-ups${assume_line}" \
   --title "Night shift" \
   --url "$url"
 
-# Telegram's notify.sh does NOT accept --url. Embed the URL inline.
+# Telegram (RoClaw bot) — notify.sh does NOT accept --url, so embed it inline.
 bash ~/Dev/ronan-skills/skills/telegram/scripts/notify.sh \
-  "night shift done: <N> merged, <M> stuck, <K> follow-ups
+  "night shift done: <N> merged, <M> stuck, <K> follow-ups${assume_line}
 
 briefing: $url
 nightsheet: <nightsheet-issue-url>" \
   --title "Night shift"
 ```
+
+On a `--self-grill` run the briefing's **Assumptions** section is the payload that matters: the Pushover tap opens the briefing HTML (assumptions up top), and the Telegram message leads with the count so the user knows how many decisions are waiting for a yes/no before they even open the link.
 
 Tapping the Pushover notification opens the morning briefing in the browser (the most useful deep-link target). Telegram displays the URLs inline so they're tappable from the chat. The nightsheet GH issue is the durable triage queue for the morning.
 
@@ -402,6 +434,9 @@ Override any by passing the flag explicitly.
 
 # Full overnight: grill drafts + slice parents + drain
 /ro:night-shift --scope full-drain --max-runtime 8h --max-waves 20
+
+# Truly AFK: self-grill every decision, log assumptions, explain them in the briefing
+/ro:night-shift --self-grill --scope full-drain
 
 # Auto-slice open parent PRDs and drain, but don't touch drafts
 /ro:night-shift --scope auto-slice
@@ -463,5 +498,6 @@ Override any by passing the flag explicitly.
 
 - **2026-05-14** — created in response to "I want a forward slash command that auto runs the night-shift swarm with sub-agent planners and sub-agent workers against the existing GH backlog for the current repo." Built on top of `/ro:planner-worker` and the auto-pushover + Opus-reviewer defaults locked in ronan-skills 1.46.1.
 - **2026-05-19** — major rewrite. Added explicit-scope opening grill (US-0), 4-signal ranker (US-1), hybrid file-area conflict detection (US-2), indefinite drain + refill loop (US-3, US-4), worker follow-up issues (US-5), nightsheet (US-6). The trigger that motivated this: "I want to see all issues closed tomorrow", which made the zero-config single-wave behaviour insufficient. Also: making "AFK" mean three different things (ready-only / grill-first / full-drain) and forcing the user to pick once at the start of the run.
+- **2026-05-28** — added `--self-grill` mode: on a truly-AFK run, auto-answer the US-0 gates and any mid-run decision via the recommendation logic, log each as an auditable assumption in `.nightshift/assumptions.md`, and surface them as the top section of the morning briefing (deep-linked from Pushover + RoClaw Telegram). Only genuinely irreversible / credential-needing decisions still escalate to `blocked-on-human`. Trigger: "I'm going AFK, continue with everything, self-grill if it makes sense and give me the assumptions in the morning."
 
 See also: [skill-lab:factory-overnight-coding-swarm](obsidian://open?vault=llm-wiki-skill-lab&file=wiki%2Fpatterns%2Ffactory-overnight-coding-swarm) for the cloud-deployed sibling running on Pi + Cloudflare Sandbox.
