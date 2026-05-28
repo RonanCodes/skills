@@ -246,11 +246,14 @@ Section shape (every briefing has these in this order):
 3. **Merged this run**: per-PR card with title, slice link, additions/deletions, squash-merged status.
 4. **New slices filed**: backlog growth grouped by parent issue; each slice link shows `merged` / `ready-for-agent` / `deferred`.
 5. **What to do this morning (in order)**: 4-7 numbered actions. ALWAYS includes deploy step if PRs landed without auto-deploy. Format: `<verb> <noun>: <specific command or link>`.
-6. **Open follow-ups**: every `needs-human` issue filed by workers + any PR review awaiting author action.
-7. **Deploy status**: pending / done / failed with the relevant command (`/ro:cf-ship` for Cloudflare, `/ro:fly-deploy` for Fly).
-8. **Biggest surprise**: 1-3 sentences capturing the most-likely-to-bite-us learning of the night. Surfaces SYSTEM gaps for the action-items list.
-9. **Run summary**: stats table (started, ended, duration, waves, workers, PRs, slices, follow-ups, dupes, side-quests, failure modes).
-10. **Links**: nightsheet GH issue, completion-report HTML, retro markdown + JSON, this briefing's path.
+6. **Assumptions made (self-grill runs only)**: read `<repo>/.nightshift/assumptions.md` and render every row as a card: the decision, what was chosen, the rationale, and whether it's reversible. Lead with a one-line count (`I made <N> calls for you, <M> still want a yes/no`). This is the section the user scans first after an AFK self-grill run, so put it high and make each row a tap-to-confirm/correct prompt. Omit the section entirely when the assumptions file is absent (interactive run).
+7. **Open follow-ups**: every `needs-human` issue filed by workers + any PR review awaiting author action.
+8. **Deploy status**: pending / done / failed with the relevant command (`/ro:cf-ship` for Cloudflare, `/ro:fly-deploy` for Fly).
+9. **Biggest surprise**: 1-3 sentences capturing the most-likely-to-bite-us learning of the night. Surfaces SYSTEM gaps for the action-items list.
+10. **Run summary**: stats table (started, ended, duration, waves, workers, PRs, slices, follow-ups, dupes, side-quests, failure modes).
+11. **Links**: nightsheet GH issue, completion-report HTML, retro markdown + JSON, this briefing's path.
+
+Place the **Assumptions** section right after the Hero card on self-grill runs (it's the highest-signal thing the user wakes up to), shifting the rest down.
 
 Reuse the GitHub dark palette CSS from any prior briefing on the same repo (look for `.nightshift/briefings/*.html`) so visual identity stays consistent across runs. If no prior briefing exists, use the canonical CSS block documented at [[night-shift-briefing-template]] (or fall back to a minimal one-pane stylesheet).
 
